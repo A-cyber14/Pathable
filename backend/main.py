@@ -14,8 +14,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",  # Vite dev server
         "http://localhost:3000",  # fallback
-        "https://pathable-eta.vercel.app/",
-        "https://pathable-idd8kjktq-heysuss1s-projects.vercel.app/",
+        "https://pathable-eta.vercel.app",
+        "https://pathable-idd8kjktq-heysuss1s-projects.vercel.app",
         "pathable-git-main-heysuss1s-projects.vercel.app",
         "pathable-heysuss1s-projects.vercel.app"
     ],
