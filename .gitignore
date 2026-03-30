@@ -1,0 +1,11 @@
+# Secret files — never commit these
+backend/.env
+backend/serviceAccountKey.json
+frontend/.env
+
+# Python
+__pycache__/
+venv/
+
+# Node
+node_modules/
