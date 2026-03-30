@@ -16,8 +16,8 @@ app.add_middleware(
         "http://localhost:3000",  # fallback
         "https://pathable-eta.vercel.app",
         "https://pathable-idd8kjktq-heysuss1s-projects.vercel.app",
-        "pathable-git-main-heysuss1s-projects.vercel.app",
-        "pathable-heysuss1s-projects.vercel.app"
+        "https://pathable-git-main-heysuss1s-projects.vercel.app/",
+        "https://pathable-heysuss1s-projects.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
