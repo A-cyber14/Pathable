@@ -1,11 +1,44 @@
-# Secret files — never commit these
-backend/.env
+# ========================
+# SECRETS — never commit these
+# ========================
 backend/serviceAccountKey.json
+backend/.env
 frontend/.env
+frontend/.env.local
+run.sh
+*.env
 
+# ========================
 # Python
+# ========================
 __pycache__/
+*.py[cod]
+*.pyo
+.venv/
 venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
 
-# Node
-node_modules/
+# ========================
+# Node / Vite
+# ========================
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ========================
+# OS junk
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# Editors
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
