@@ -5,7 +5,7 @@ from routers import businesses, reviews, users
 
 app = FastAPI(
     title="Pathable API",
-    description="Accessibility location finder for Pinellas County, FL",
+    description="Accessibility location finder for the Tampa Bay Area",
     version="0.1.0",
 )
 
@@ -16,7 +16,7 @@ app.add_middleware(
         "http://localhost:3000",  # fallback
         "https://pathable-eta.vercel.app",
         "https://pathable-idd8kjktq-heysuss1s-projects.vercel.app",
-        "https://pathable-git-main-heysuss1s-projects.vercel.app/",
+        "https://pathable-git-main-heysuss1s-projects.vercel.app",
         "https://pathable-heysuss1s-projects.vercel.app"
     ],
     allow_credentials=True,
