@@ -160,8 +160,10 @@ def report_business(business_id: str, body: ReportRequest, authorization: str = 
 # ---------------------------------------------------------------------------
 
 class PhotoSubmission(BaseModel):
-    photoUrl: str
-    caption:  Optional[str] = None
+    photoUrl:   str
+    category:   Optional[str] = None   # e.g. "Entrance", "Bathroom", etc.
+    caption:    Optional[str] = None
+    uploadedBy: Optional[str] = None   # Firebase UID from frontend
 
 
 @router.post("/{business_id}/photos", status_code=201)
@@ -176,8 +178,11 @@ def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = H
         "userId":     uid,
         "type":       "photo",
         "photoUrl":   body.photoUrl,
+        "category":   body.category,
         "caption":    body.caption,
+        "uploadedBy": body.uploadedBy or uid,
         "status":     "pending_review",
+        "verified":   False,
         "createdAt":  datetime.now(timezone.utc).isoformat(),
     })
 

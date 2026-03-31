@@ -1,32 +1,21 @@
-// ---------------------------------------------------------------------------
-// Pathable API helper
-// All requests go through FastAPI — never directly to Firebase.
-// Base URL is set via VITE_API_BASE_URL in .env (defaults to localhost:8000)
-// Firebase auth token is automatically attached to every request when a
-// user is signed in, via an Axios request interceptor.
-// ---------------------------------------------------------------------------
-
 import axios from "axios";
-import { auth } from "../firebase";   // FIX: was "../firebase" — path must match actual file location
+import { auth } from "../firebase";
 
+<<<<<<< HEAD
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 // ---------------------------------------------------------------------------
 // Axios instance
 // ---------------------------------------------------------------------------
+=======
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+>>>>>>> e143b9eae0b4361f2e402a47f65892b00c5518ec
 
 const api = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
-
-// ---------------------------------------------------------------------------
-// Request interceptor — attach Firebase auth token if user is signed in
-// If no user is logged in, the request goes out without an Authorization header.
-// ---------------------------------------------------------------------------
 
 api.interceptors.request.use(async (config) => {
   const user = auth.currentUser;
@@ -37,21 +26,15 @@ api.interceptors.request.use(async (config) => {
   return config;
 }, (error) => Promise.reject(error));
 
-// ---------------------------------------------------------------------------
-// Response interceptor — normalize FastAPI error shape { detail: "..." }
-// ---------------------------------------------------------------------------
-
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message =
-      error.response?.data?.detail ||
-      error.message ||
-      "Request failed";
+    const message = error.response?.data?.detail || error.message || "Request failed";
     return Promise.reject(new Error(message));
   }
 );
 
+<<<<<<< HEAD
 export async function getBusinesses() {
   return api.get("/api/businesses");
 }
@@ -99,3 +82,16 @@ export async function submitFeatures(businessId, data) {
   return api.post(`/api/businesses/${businessId}/features`, data);
 }
 
+=======
+export async function getBusinesses()          { return api.get("/api/businesses"); }
+export async function getBusiness(id)          { return api.get(`/api/businesses/${id}`); }
+export async function searchBusinesses(query)  { return query?.trim() ? api.get(`/api/businesses/search?q=${encodeURIComponent(query.trim())}`) : getBusinesses(); }
+export async function submitReview(data)       { return api.post("/api/reviews", data); }
+export async function getBookmarks()           { return api.get("/api/users/me/bookmarks"); }
+export async function addBookmark(id)          { return api.post(`/api/businesses/${id}/bookmark`); }
+export async function removeBookmark(id)       { return api.delete(`/api/businesses/${id}/bookmark`); }
+export async function getProfile()             { return api.get("/api/users/me/profile"); }
+export async function updateProfile(data)      { return api.put("/api/users/me/profile", data); }
+export async function submitPhoto(id, data)    { return api.post(`/api/businesses/${id}/photos`, data); }
+export async function submitFeatures(id, data) { return api.post(`/api/businesses/${id}/features`, data); }
+>>>>>>> e143b9eae0b4361f2e402a47f65892b00c5518ec
