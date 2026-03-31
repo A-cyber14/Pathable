@@ -13,18 +13,11 @@ const PHOTO_SLOTS = [
 
 // ---------------------------------------------------------------------------
 // calculatePathableScore
-//
-// Scoring breakdown (total = 100):
-//   Features score   0–50  (what accessibility features exist)
-//   Preference match 0–30  (how well it matches user's saved preferences)
-//   Confidence       0–20  (how complete the data is)
-//
-// Returns an object with all the detail needed for the modal.
+// Used ONLY for the breakdown detail inside the dropdown modal.
+// The headline score displayed on the badge always comes from business.accessibility_score
+// (computed by backend scoring.py) — that is the single source of truth.
 // ---------------------------------------------------------------------------
 function calculatePathableScore(business, userPreferences = []) {
-
-  // --- 1. FEATURES SCORE (0–50) ---
-  // Each feature has a weight. Total weights = 50.
   const featureChecks = [
     { key: "wheelchair_accessible", label: "Ramps / Wheelchair Access", icon: "♿", weight: 15 },
     { key: "accessible_parking",    label: "Accessible Parking",         icon: "🚗", weight: 10 },
@@ -34,7 +27,6 @@ function calculatePathableScore(business, userPreferences = []) {
     { key: "auto_doors",            label: "Automatic Doors",            icon: "🔄", weight: 3  },
   ];
 
-  // Figure out if each feature is present
   const features = featureChecks.map((f) => {
     let present = false;
     if (f.key === "entrance_width") {
@@ -47,8 +39,6 @@ function calculatePathableScore(business, userPreferences = []) {
 
   const featuresScore = features.reduce((sum, f) => sum + (f.present ? f.weight : 0), 0);
 
-  // --- 2. PREFERENCE MATCH SCORE (0–30) ---
-  // Maps user preference keys to feature keys
   const prefToFeature = {
     accessible_parking:   "accessible_parking",
     wide_entrances:       "entrance_width",
@@ -68,7 +58,6 @@ function calculatePathableScore(business, userPreferences = []) {
     }
   });
 
-  // If user has no preferences set, give neutral 15/30
   const preferenceScore = totalPrefs > 0
     ? Math.round((matchedCount / totalPrefs) * 30)
     : 15;
@@ -77,8 +66,6 @@ function calculatePathableScore(business, userPreferences = []) {
     ? Math.round((matchedCount / totalPrefs) * 100)
     : null;
 
-  // --- 3. CONFIDENCE SCORE (0–20) ---
-  // How many of the feature fields actually have data (not null/undefined)
   const filledFields = features.filter((f) => {
     if (f.key === "entrance_width") return business.entrance_width_rating != null;
     return business[f.key] !== undefined && business[f.key] !== null;
@@ -94,16 +81,7 @@ function calculatePathableScore(business, userPreferences = []) {
     confidenceRaw >= 15 ? "#16a34a" :
     confidenceRaw >= 8  ? "#d97706" : "#dc2626";
 
-  // --- TOTAL ---
-  const total = featuresScore + preferenceScore + confidenceRaw;
-
-  // Color-code the total score badge
-  const scoreColor  = total >= 75 ? "#16a34a" : total >= 50 ? "#d97706" : "#dc2626";
-  const scoreBg     = total >= 75 ? "#f0fdf4" : total >= 50 ? "#fffbeb" : "#fef2f2";
-  const scoreBorder = total >= 75 ? "#bbf7d0" : total >= 50 ? "#fde68a" : "#fecaca";
-
   return {
-    total,
     featuresScore,
     preferenceScore,
     confidenceRaw,
@@ -114,14 +92,17 @@ function calculatePathableScore(business, userPreferences = []) {
     matchedCount,
     totalPrefs,
     matchPercent,
-    scoreColor,
-    scoreBg,
-    scoreBorder,
   };
 }
 
+function scoreColors(score) {
+  if (score >= 75) return { color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" };
+  if (score >= 50) return { color: "#d97706", bg: "#fffbeb", border: "#fde68a" };
+  return { color: "#dc2626", bg: "#fef2f2", border: "#fecaca" };
+}
+
 // ---------------------------------------------------------------------------
-// ScoreBar — simple horizontal progress bar
+// ScoreBar
 // ---------------------------------------------------------------------------
 function ScoreBar({ value, max, color }) {
   return (
@@ -133,92 +114,66 @@ function ScoreBar({ value, max, color }) {
 
 // ---------------------------------------------------------------------------
 // PathableRatingBadge
-// The clickable badge + breakdown dropdown for the score
+//
+// Displays business.accessibility_score (from backend) as the headline number.
+// The breakdown modal shows feature/preference/confidence components for context.
 // ---------------------------------------------------------------------------
 function PathableRatingBadge({ business, userPreferences }) {
   const [open, setOpen] = useState(false);
+
+  // Backend score is the single source of truth — fall back to null if missing
+  const displayTotal = business.accessibility_score ?? null;
+  const { color, bg, border } = displayTotal != null
+    ? scoreColors(displayTotal)
+    : { color: "#9ca3af", bg: "#f3f4f6", border: "#e5e7eb" };
+
+  // Breakdown data (for the modal detail rows only — not used for the headline)
   const s = calculatePathableScore(business, userPreferences);
 
   return (
     <div style={{ position: "relative" }}>
 
-      {/* Badge — always visible */}
+      {/* Badge */}
       <button
         onClick={() => setOpen((v) => !v)}
         title="Click to see score breakdown"
-        style={{
-          display:         "flex",
-          flexDirection:   "column",
-          alignItems:      "flex-end",
-          gap:             "3px",
-          background:      "none",
-          border:          "none",
-          cursor:          "pointer",
-          padding:         0,
-        }}
+        style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", background: "none", border: "none", cursor: "pointer", padding: 0 }}
       >
         <span style={{ fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
           Pathable Score
         </span>
-        <div
-          style={{
-            display:         "flex",
-            alignItems:      "center",
-            gap:             "6px",
-            backgroundColor: s.scoreBg,
-            border:          `1.5px solid ${s.scoreBorder}`,
-            borderRadius:    "10px",
-            padding:         "6px 14px",
-          }}
-        >
-          <span style={{ fontSize: "24px", fontWeight: "800", color: s.scoreColor, lineHeight: 1 }}>
-            {s.total}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: bg, border: `1.5px solid ${border}`, borderRadius: "10px", padding: "6px 14px" }}>
+          <span style={{ fontSize: "24px", fontWeight: "800", color, lineHeight: 1 }}>
+            {displayTotal ?? "—"}
           </span>
           <span style={{ fontSize: "13px", color: "#9ca3af" }}>/100</span>
           <span style={{ fontSize: "11px", color: "#9ca3af" }}>▾</span>
         </div>
       </button>
 
-      {/* Dropdown breakdown */}
+      {/* Breakdown dropdown */}
       {open && (
         <>
-          {/* Click outside to close */}
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
+          <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: "320px", backgroundColor: "#fff", border: "1.5px solid #e5e7eb", borderRadius: "14px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, overflow: "hidden" }}>
 
-          <div
-            style={{
-              position:        "absolute",
-              top:             "calc(100% + 8px)",
-              right:           0,
-              width:           "320px",
-              backgroundColor: "#fff",
-              border:          "1.5px solid #e5e7eb",
-              borderRadius:    "14px",
-              boxShadow:       "0 8px 24px rgba(0,0,0,0.12)",
-              zIndex:          50,
-              overflow:        "hidden",
-            }}
-          >
-            {/* Header */}
-            <div style={{ padding: "14px 16px", backgroundColor: s.scoreBg, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {/* Header — uses backend score */}
+            <div style={{ padding: "14px 16px", backgroundColor: bg, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: "700", fontSize: "14px", color: "#111827" }}>Score Breakdown</div>
                 <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>How this rating is calculated</div>
               </div>
-              <div style={{ fontSize: "28px", fontWeight: "800", color: s.scoreColor }}>
-                {s.total}<span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>/100</span>
+              <div style={{ fontSize: "28px", fontWeight: "800", color }}>
+                {displayTotal ?? "—"}<span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>/100</span>
               </div>
             </div>
 
             <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "16px" }}>
 
-              {/* Section label helper */}
-              {/* Features Score */}
+              {/* Features */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    Accessibility Features
-                  </span>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Accessibility Features</span>
                   <span style={{ fontSize: "13px", fontWeight: "700", color: "#111827" }}>{s.featuresScore}/50</span>
                 </div>
                 <ScoreBar value={s.featuresScore} max={50} color="#2563eb" />
@@ -235,12 +190,10 @@ function PathableRatingBadge({ business, userPreferences }) {
                 </div>
               </div>
 
-              {/* Preference Match */}
+              {/* Preference match */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    Your Preference Match
-                  </span>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Your Preference Match</span>
                   <span style={{ fontSize: "13px", fontWeight: "700", color: "#111827" }}>{s.preferenceScore}/30</span>
                 </div>
                 <ScoreBar value={s.preferenceScore} max={30} color="#7c3aed" />
@@ -254,9 +207,7 @@ function PathableRatingBadge({ business, userPreferences }) {
               {/* Confidence */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    Data Confidence
-                  </span>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Data Confidence</span>
                   <span style={{ fontSize: "13px", fontWeight: "700", color: s.confidenceColor }}>{s.confidenceLabel} ({s.confidenceRaw}/20)</span>
                 </div>
                 <ScoreBar value={s.confidenceRaw} max={20} color={s.confidenceColor} />
@@ -321,7 +272,6 @@ export default function BusinessDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Load user preferences silently — no error if not logged in
   useEffect(() => {
     getProfile()
       .then((data) => setUserPrefs(data.featurePreferences || []))
@@ -350,12 +300,10 @@ export default function BusinessDetailPage() {
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 20px" }}>
 
-        {/* Back */}
         <button onClick={() => navigate("/")} style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "14px", padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
           ← Back to Map
         </button>
 
-        {/* Header — name left, Pathable Score right */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
           <h1 style={{ margin: 0, fontSize: "28px", fontWeight: "800", color: "#111827", paddingRight: "16px" }}>
             {business.name}
@@ -363,7 +311,6 @@ export default function BusinessDetailPage() {
           <PathableRatingBadge business={business} userPreferences={userPrefs} />
         </div>
 
-        {/* Address */}
         <p style={{ margin: "0 0 24px", fontSize: "14px", color: "#6b7280" }}>📍 {business.address}</p>
 
         {business.description && (
@@ -407,7 +354,11 @@ export default function BusinessDetailPage() {
                   {business.entrance_width_rating.charAt(0).toUpperCase() + business.entrance_width_rating.slice(1)}
                 </div>
                 <p style={{ margin: 0, fontSize: "13px", color: "#6b7280" }}>
-                  {business.entrance_width_rating === "wide" ? "Fully accessible (wide entry)" : business.entrance_width_rating === "standard" ? 'Accessible (standard 36" minimum)' : "May be difficult for some mobility aids"}
+                  {business.entrance_width_rating === "wide"
+                    ? "Fully accessible (wide entry)"
+                    : business.entrance_width_rating === "standard"
+                    ? 'Accessible (standard 36" minimum)'
+                    : "May be difficult for some mobility aids"}
                 </p>
               </>
             ) : (

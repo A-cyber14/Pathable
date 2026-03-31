@@ -1,35 +1,21 @@
 // ---------------------------------------------------------------------------
 // BusinessCard
-// Matches the location card design from the UI mockups (Image 1, Image 8).
-//
 // Props:
-//   business    — business object from the API
-//   isSelected  — bool, renders blue border when true (Image 8)
+//   business    — business object from the API (includes accessibility_score)
+//   isSelected  — bool, renders blue border when true
 //   onClick     — callback fired when the card is clicked
+//   rank        — optional number (1–10) shown as a rank badge
 // ---------------------------------------------------------------------------
 
-// SVG bookmark icon
-function BookmarkIcon({ filled = false, size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24"
-      fill={filled ? "#f59e0b" : "none"}
-      stroke={filled ? "#f59e0b" : "#9ca3af"}
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-// Star rating — filled/half/empty SVG stars, score out of 5
 function StarRating({ score, max = 5 }) {
   if (score == null) return null;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
       {Array.from({ length: max }, (_, i) => {
-        const n       = i + 1;
-        const filled  = score >= n;
-        const half    = !filled && score >= n - 0.5;
-        const gradId  = `hg-${i}`;
+        const n      = i + 1;
+        const filled = score >= n;
+        const half   = !filled && score >= n - 0.5;
+        const gradId = `hg-${i}`;
         return (
           <svg key={i} width="13" height="13" viewBox="0 0 24 24">
             {half && (
@@ -56,7 +42,7 @@ function StarRating({ score, max = 5 }) {
   );
 }
 
-export default function BusinessCard({ business, isSelected = false, onClick }) {
+export default function BusinessCard({ business, isSelected = false, onClick, rank }) {
   const {
     id,
     name,
@@ -66,6 +52,9 @@ export default function BusinessCard({ business, isSelected = false, onClick }) 
     accessible_parking,
     entrance_width_rating,
   } = business;
+
+  // accessibility_score is 0–100; convert to 0–5 for star display
+  const starScore = accessibility_score != null ? (accessibility_score / 100) * 5 : null;
 
   const tags = [
     { label: "Wheelchair", value: wheelchair_accessible },
@@ -77,6 +66,17 @@ export default function BusinessCard({ business, isSelected = false, onClick }) 
       value: entrance_width_rating === "wide" || entrance_width_rating === "standard",
     },
   ];
+
+  // Score color thresholds
+  const scoreColor = accessibility_score == null ? "#9ca3af"
+    : accessibility_score >= 75 ? "#16a34a"
+    : accessibility_score >= 50 ? "#d97706"
+    : "#dc2626";
+
+  const scoreBg = accessibility_score == null ? "#f3f4f6"
+    : accessibility_score >= 75 ? "#f0fdf4"
+    : accessibility_score >= 50 ? "#fffbeb"
+    : "#fef2f2";
 
   return (
     <div
@@ -92,18 +92,60 @@ export default function BusinessCard({ business, isSelected = false, onClick }) 
           ? "0 0 0 3px rgba(37,99,235,0.15)"
           : "0 1px 3px rgba(0,0,0,0.07)",
         transition:      "border-color 0.15s, box-shadow 0.15s",
+        position:        "relative",
       }}
     >
-      {/* Row 1 — name left, star rating top-right */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+      {/* Rank badge — top-left corner */}
+      {rank != null && (
+        <div
+          style={{
+            position:        "absolute",
+            top:             "12px",
+            left:            "12px",
+            width:           "24px",
+            height:          "24px",
+            borderRadius:    "50%",
+            backgroundColor: rank === 1 ? "#f59e0b" : rank <= 3 ? "#6b7280" : "#e5e7eb",
+            color:           rank <= 3 ? "#fff" : "#374151",
+            fontSize:        "11px",
+            fontWeight:      "800",
+            display:         "flex",
+            alignItems:      "center",
+            justifyContent:  "center",
+            flexShrink:      0,
+          }}
+        >
+          {rank}
+        </div>
+      )}
+
+      {/* Row 1 — name + score badge */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px", paddingLeft: rank != null ? "32px" : "0" }}>
         <span style={{ fontWeight: "700", fontSize: "15px", color: "#111827", paddingRight: "8px" }}>
           {name}
         </span>
-        <StarRating score={accessibility_score} />
+
+        {/* Pathable score badge */}
+        {accessibility_score != null && (
+          <span
+            style={{
+              fontSize:        "12px",
+              fontWeight:      "700",
+              color:           scoreColor,
+              backgroundColor: scoreBg,
+              borderRadius:    "6px",
+              padding:         "2px 7px",
+              flexShrink:      0,
+              whiteSpace:      "nowrap",
+            }}
+          >
+            {accessibility_score}/100
+          </span>
+        )}
       </div>
 
-      {/* Row 2 — address with SVG pin */}
-      <p style={{ margin: "0 0 12px", fontSize: "13px", color: "#6b7280", display: "flex", alignItems: "center", gap: "4px" }}>
+      {/* Row 2 — address */}
+      <p style={{ margin: "0 0 12px", fontSize: "13px", color: "#6b7280", display: "flex", alignItems: "center", gap: "4px", paddingLeft: rank != null ? "32px" : "0" }}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
           <circle cx="12" cy="10" r="3"/>

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import HomePage               from "./pages/HomePage";
 import BusinessDetailPage     from "./pages/BusinessDetailPage";
+import UnverifiedBusinessPage from "./pages/UnverifiedBusinessPage";
 import LoginPage              from "./pages/LoginPage";
 import BookmarksPage          from "./pages/BookmarksPage";
 import ContributePage         from "./pages/ContributePage";
@@ -16,9 +17,13 @@ export default function App() {
       <Navbar />
       <div style={{ marginLeft: "68px", height: "100vh" }}>
         <Routes>
+          {/* Public */}
           <Route path="/"             element={<HomePage />} />
           <Route path="/business/:id" element={<BusinessDetailPage />} />
+          <Route path="/place/:placeId" element={<UnverifiedBusinessPage />} />
           <Route path="/login"        element={<LoginPage />} />
+
+          {/* Protected */}
           <Route path="/bookmarks"           element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
           <Route path="/contribute"          element={<ProtectedRoute><ContributePage /></ProtectedRoute>} />
           <Route path="/contribute/photos"   element={<ProtectedRoute><ContributePhotosPage /></ProtectedRoute>} />

@@ -2,135 +2,10 @@ import { useState, useEffect } from "react";
 import MapView      from "../components/MapView";
 import BusinessCard from "../components/BusinessCard";
 import SearchBar    from "../components/SearchBar";
-import { getBusinesses } from "../services/api";
+import { getTopRated } from "../services/api";
 
 // ---------------------------------------------------------------------------
-// geocodeLocation
-// Converts a text query ("Tampa, FL") into { lat, lng } using Google Maps
-// Geocoding API. Returns null if nothing found.
-// ---------------------------------------------------------------------------
-async function geocodeLocation(query) {
-  return new Promise((resolve) => {
-    if (!window.google?.maps?.Geocoder) return resolve(null);
-    const geocoder = new window.google.maps.Geocoder();
-    geocoder.geocode({ address: query }, (results, status) => {
-      if (status === "OK" && results.length > 0) {
-        const loc = results[0].geometry.location;
-        resolve({ lat: loc.lat(), lng: loc.lng() });
-      } else {
-        resolve(null);
-      }
-    });
-  });
-}
-
-// ---------------------------------------------------------------------------
-// LocationSearchBar
-// Separate search bar just for map location (city, address, place name).
-// Props:
-//   onLocationFound(center) — passes { lat, lng } back to HomePage
-// ---------------------------------------------------------------------------
-function LocationSearchBar({ onLocationFound }) {
-  const [query,      setQuery]      = useState("");
-  const [searching,  setSearching]  = useState(false);
-  const [notFound,   setNotFound]   = useState(false);
-
-  const handleSearch = async () => {
-    const trimmed = query.trim();
-    if (!trimmed) return;
-
-    setSearching(true);
-    setNotFound(false);
-
-    const coords = await geocodeLocation(trimmed);
-
-    setSearching(false);
-
-    if (coords) {
-      onLocationFound(coords);
-      setNotFound(false);
-    } else {
-      setNotFound(true);
-    }
-  };
-
-  // Allow pressing Enter to search
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSearch();
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
-      <div
-        style={{
-          display:         "flex",
-          alignItems:      "center",
-          gap:             "8px",
-          border:          "1px solid #d1d5db",
-          borderRadius:    "8px",
-          padding:         "8px 12px",
-          backgroundColor: "#fff",
-        }}
-      >
-        {/* Globe icon to distinguish from business search */}
-        <span style={{ fontSize: "16px", color: "#9ca3af" }}>🌍</span>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
-          onKeyDown={handleKeyDown}
-          placeholder="Search any location (city, address, place...)"
-          style={{
-            flex:            1,
-            border:          "none",
-            outline:         "none",
-            fontSize:        "14px",
-            color:           "#111827",
-            backgroundColor: "transparent",
-          }}
-        />
-        {/* Clear button */}
-        {query && (
-          <button
-            onClick={() => { setQuery(""); setNotFound(false); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: "16px", padding: 0 }}
-          >
-            ✕
-          </button>
-        )}
-        {/* Search button */}
-        <button
-          onClick={handleSearch}
-          disabled={searching}
-          style={{
-            padding:         "5px 12px",
-            backgroundColor: "#2563eb",
-            color:           "#fff",
-            border:          "none",
-            borderRadius:    "6px",
-            fontSize:        "13px",
-            fontWeight:      "600",
-            cursor:          searching ? "not-allowed" : "pointer",
-            opacity:         searching ? 0.7 : 1,
-            whiteSpace:      "nowrap",
-          }}
-        >
-          {searching ? "..." : "Go"}
-        </button>
-      </div>
-
-      {/* Error message for invalid location */}
-      {notFound && (
-        <p style={{ margin: 0, fontSize: "12px", color: "#dc2626", paddingLeft: "4px" }}>
-          Location not found. Try a different search.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SelectedPanel — shows below map when a business is clicked
+// SelectedPanel — shows below map when a business pin is clicked
 // ---------------------------------------------------------------------------
 function SelectedPanel({ business, onClose }) {
   const checks = [
@@ -149,11 +24,21 @@ function SelectedPanel({ business, onClose }) {
         ✕
       </button>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", flexWrap: "wrap" }}>
         <span style={{ fontWeight: "700", fontSize: "17px" }}>{business.name}</span>
-        {business.community_score != null && (
-          <span style={{ backgroundColor: "#2563eb", color: "#fff", borderRadius: "6px", padding: "2px 8px", fontSize: "13px", fontWeight: "600" }}>
-            ★ {business.community_score}/5
+        {business.accessibility_score != null && (
+          <span
+            style={{
+              backgroundColor: business.accessibility_score >= 75 ? "#f0fdf4" : business.accessibility_score >= 50 ? "#fffbeb" : "#fef2f2",
+              color:           business.accessibility_score >= 75 ? "#16a34a" : business.accessibility_score >= 50 ? "#d97706" : "#dc2626",
+              border:          `1px solid ${business.accessibility_score >= 75 ? "#bbf7d0" : business.accessibility_score >= 50 ? "#fde68a" : "#fecaca"}`,
+              borderRadius:    "6px",
+              padding:         "2px 8px",
+              fontSize:        "13px",
+              fontWeight:      "700",
+            }}
+          >
+            {business.accessibility_score}/100
           </span>
         )}
       </div>
@@ -176,14 +61,12 @@ function SelectedPanel({ business, onClose }) {
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <a
-          href={`/business/${business.id}`}
-          style={{ marginLeft: "auto", fontSize: "13px", color: "#2563eb", textDecoration: "none", fontWeight: "500" }}
-        >
-          View full details →
-        </a>
-      </div>
+      <a
+        href={`/business/${business.id}`}
+        style={{ fontSize: "13px", color: "#2563eb", textDecoration: "none", fontWeight: "500" }}
+      >
+        View full details →
+      </a>
     </div>
   );
 }
@@ -203,27 +86,21 @@ function EmptyState() {
 
 // ---------------------------------------------------------------------------
 // HomePage
+// Loads top-10 rated businesses on mount.
+// Unified SearchBar navigates to detail pages — does not filter the list.
 // ---------------------------------------------------------------------------
 export default function HomePage() {
   const [businesses,       setBusinesses]       = useState([]);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
-  const [mapCenter,        setMapCenter]        = useState(null); // { lat, lng }
   const [loading,          setLoading]          = useState(true);
   const [error,            setError]            = useState(null);
 
-  // Load all businesses on mount
   useEffect(() => {
-    getBusinesses()
+    getTopRated()
       .then(setBusinesses)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
-
-  // Business name search updates the list
-  const handleSearchResults = (results) => setBusinesses(results);
-
-  // Location search re-centers the map
-  const handleLocationFound = (coords) => setMapCenter(coords);
 
   const handleSelectBusiness = (business) => {
     setSelectedBusiness((prev) => (prev?.id === business.id ? null : business));
@@ -232,22 +109,17 @@ export default function HomePage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "sans-serif" }}>
 
-      {/* Top bar — two search bars side by side */}
+      {/* Top bar — single unified search bar */}
       <div
         style={{
           padding:         "10px 16px",
           borderBottom:    "1px solid #e5e7eb",
           backgroundColor: "#fff",
           display:         "flex",
-          gap:             "10px",
-          alignItems:      "flex-start",
+          alignItems:      "center",
         }}
       >
-        {/* Business name search */}
-        <SearchBar onSearch={handleSearchResults} />
-
-        {/* Location / map search */}
-        <LocationSearchBar onLocationFound={handleLocationFound} />
+        <SearchBar onSelectBusiness={handleSelectBusiness} />
       </div>
 
       {/* Main content */}
@@ -260,12 +132,12 @@ export default function HomePage() {
               businesses={businesses}
               selectedBusiness={selectedBusiness}
               onSelectBusiness={handleSelectBusiness}
-              mapCenter={mapCenter}
+              mapCenter={null}
             />
 
             {/* Map label */}
             <div style={{ position: "absolute", top: "12px", left: "12px", backgroundColor: "#fff", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", fontWeight: "600", boxShadow: "0 1px 4px rgba(0,0,0,0.15)", pointerEvents: "none" }}>
-              Interactive Map View
+              Top Rated Locations
             </div>
 
             {/* Legend */}
@@ -280,21 +152,25 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Right — business list */}
+        {/* Right — ranked business list */}
         <div style={{ width: "380px", overflowY: "auto", borderLeft: "1px solid #e5e7eb", padding: "16px", backgroundColor: "#f9fafb" }}>
-          <h2 style={{ margin: "0 0 16px", fontSize: "18px", display: "flex", alignItems: "center", gap: "8px", color: "#111827" }}>
-            ♿ Accessible Locations
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827", display: "flex", alignItems: "center", gap: "6px" }}>
+              ♿ Top Rated
+            </h2>
+            <span style={{ fontSize: "12px", color: "#9ca3af" }}>by Pathable score</span>
+          </div>
 
-          {loading && <p style={{ color: "#6b7280" }}>Loading locations...</p>}
-          {error   && <p style={{ color: "#dc2626" }}>Error: {error}</p>}
+          {loading && <p style={{ color: "#6b7280", fontSize: "14px" }}>Loading locations...</p>}
+          {error   && <p style={{ color: "#dc2626", fontSize: "14px" }}>Error: {error}</p>}
           {!loading && !error && businesses.length === 0 && <EmptyState />}
-          {!loading && !error && businesses.map((business) => (
+          {!loading && !error && businesses.map((business, index) => (
             <BusinessCard
               key={business.id}
               business={business}
               isSelected={selectedBusiness?.id === business.id}
               onClick={() => handleSelectBusiness(business)}
+              rank={index + 1}
             />
           ))}
         </div>
