@@ -9,11 +9,8 @@
 import axios from "axios";
 import { auth } from "../firebase";   // FIX: was "../firebase" — path must match actual file location
 
-<<<<<<< HEAD
-const BASE_URL = /*import.meta.env.VITE_API_BASE_URL ||*/ "http://localhost:8000";
-=======
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
->>>>>>> 9971bf495f42839cca70a17766eb9fe98588945f
 
 // ---------------------------------------------------------------------------
 // Axios instance
@@ -101,7 +98,4 @@ export async function submitPhoto(businessId, data) {
 export async function submitFeatures(businessId, data) {
   return api.post(`/api/businesses/${businessId}/features`, data);
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> 9971bf495f42839cca70a17766eb9fe98588945f
