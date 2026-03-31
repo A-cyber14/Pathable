@@ -13,11 +13,14 @@ const PHOTO_SLOTS = [
 
 // ---------------------------------------------------------------------------
 // calculatePathableScore
-// Used ONLY for the breakdown detail inside the dropdown modal.
-// The headline score displayed on the badge always comes from business.accessibility_score
-// (computed by backend scoring.py) — that is the single source of truth.
+//
+// Score = featuresScore + preferenceScore + confidenceRaw
+// This is the ONLY place scores are calculated for display.
+// The badge always shows s.total — the exact sum of the three sections below.
 // ---------------------------------------------------------------------------
 function calculatePathableScore(business, userPreferences = []) {
+
+  // --- 1. FEATURES SCORE (0–50) ---
   const featureChecks = [
     { key: "wheelchair_accessible", label: "Ramps / Wheelchair Access", icon: "♿", weight: 15 },
     { key: "accessible_parking",    label: "Accessible Parking",         icon: "🚗", weight: 10 },
@@ -39,6 +42,7 @@ function calculatePathableScore(business, userPreferences = []) {
 
   const featuresScore = features.reduce((sum, f) => sum + (f.present ? f.weight : 0), 0);
 
+  // --- 2. PREFERENCE MATCH SCORE (0–30) ---
   const prefToFeature = {
     accessible_parking:   "accessible_parking",
     wide_entrances:       "entrance_width",
@@ -66,6 +70,7 @@ function calculatePathableScore(business, userPreferences = []) {
     ? Math.round((matchedCount / totalPrefs) * 100)
     : null;
 
+  // --- 3. CONFIDENCE SCORE (0–20) ---
   const filledFields = features.filter((f) => {
     if (f.key === "entrance_width") return business.entrance_width_rating != null;
     return business[f.key] !== undefined && business[f.key] !== null;
@@ -81,7 +86,15 @@ function calculatePathableScore(business, userPreferences = []) {
     confidenceRaw >= 15 ? "#16a34a" :
     confidenceRaw >= 8  ? "#d97706" : "#dc2626";
 
+  // --- TOTAL — badge always shows this exact number ---
+  const total = featuresScore + preferenceScore + confidenceRaw;
+
+  const scoreColor  = total >= 75 ? "#16a34a" : total >= 50 ? "#d97706" : "#dc2626";
+  const scoreBg     = total >= 75 ? "#f0fdf4" : total >= 50 ? "#fffbeb" : "#fef2f2";
+  const scoreBorder = total >= 75 ? "#bbf7d0" : total >= 50 ? "#fde68a" : "#fecaca";
+
   return {
+    total,
     featuresScore,
     preferenceScore,
     confidenceRaw,
@@ -92,13 +105,10 @@ function calculatePathableScore(business, userPreferences = []) {
     matchedCount,
     totalPrefs,
     matchPercent,
+    scoreColor,
+    scoreBg,
+    scoreBorder,
   };
-}
-
-function scoreColors(score) {
-  if (score >= 75) return { color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" };
-  if (score >= 50) return { color: "#d97706", bg: "#fffbeb", border: "#fde68a" };
-  return { color: "#dc2626", bg: "#fef2f2", border: "#fecaca" };
 }
 
 // ---------------------------------------------------------------------------
@@ -114,26 +124,15 @@ function ScoreBar({ value, max, color }) {
 
 // ---------------------------------------------------------------------------
 // PathableRatingBadge
-//
-// Displays business.accessibility_score (from backend) as the headline number.
-// The breakdown modal shows feature/preference/confidence components for context.
+// Badge shows s.total — the literal sum of the three breakdown sections.
 // ---------------------------------------------------------------------------
 function PathableRatingBadge({ business, userPreferences }) {
   const [open, setOpen] = useState(false);
-
-  // Backend score is the single source of truth — fall back to null if missing
-  const displayTotal = business.accessibility_score ?? null;
-  const { color, bg, border } = displayTotal != null
-    ? scoreColors(displayTotal)
-    : { color: "#9ca3af", bg: "#f3f4f6", border: "#e5e7eb" };
-
-  // Breakdown data (for the modal detail rows only — not used for the headline)
   const s = calculatePathableScore(business, userPreferences);
 
   return (
     <div style={{ position: "relative" }}>
 
-      {/* Badge */}
       <button
         onClick={() => setOpen((v) => !v)}
         title="Click to see score breakdown"
@@ -142,29 +141,27 @@ function PathableRatingBadge({ business, userPreferences }) {
         <span style={{ fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
           Pathable Score
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: bg, border: `1.5px solid ${border}`, borderRadius: "10px", padding: "6px 14px" }}>
-          <span style={{ fontSize: "24px", fontWeight: "800", color, lineHeight: 1 }}>
-            {displayTotal ?? "—"}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: s.scoreBg, border: `1.5px solid ${s.scoreBorder}`, borderRadius: "10px", padding: "6px 14px" }}>
+          <span style={{ fontSize: "24px", fontWeight: "800", color: s.scoreColor, lineHeight: 1 }}>
+            {s.total}
           </span>
           <span style={{ fontSize: "13px", color: "#9ca3af" }}>/100</span>
           <span style={{ fontSize: "11px", color: "#9ca3af" }}>▾</span>
         </div>
       </button>
 
-      {/* Breakdown dropdown */}
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
           <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: "320px", backgroundColor: "#fff", border: "1.5px solid #e5e7eb", borderRadius: "14px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, overflow: "hidden" }}>
 
-            {/* Header — uses backend score */}
-            <div style={{ padding: "14px 16px", backgroundColor: bg, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "14px 16px", backgroundColor: s.scoreBg, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: "700", fontSize: "14px", color: "#111827" }}>Score Breakdown</div>
                 <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>How this rating is calculated</div>
               </div>
-              <div style={{ fontSize: "28px", fontWeight: "800", color }}>
-                {displayTotal ?? "—"}<span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>/100</span>
+              <div style={{ fontSize: "28px", fontWeight: "800", color: s.scoreColor }}>
+                {s.total}<span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>/100</span>
               </div>
             </div>
 
@@ -190,7 +187,7 @@ function PathableRatingBadge({ business, userPreferences }) {
                 </div>
               </div>
 
-              {/* Preference match */}
+              {/* Preference Match */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Your Preference Match</span>
@@ -225,7 +222,7 @@ function PathableRatingBadge({ business, userPreferences }) {
 }
 
 // ---------------------------------------------------------------------------
-// FeatureCard + CheckRow helpers
+// FeatureCard + CheckRow
 // ---------------------------------------------------------------------------
 function FeatureCard({ title, icon, children }) {
   return (
@@ -294,8 +291,7 @@ export default function BusinessDetailPage() {
   if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "#6b7280", fontFamily: "sans-serif" }}>Loading...</div>;
   if (error || !business) return <div style={{ padding: "40px", textAlign: "center", color: "#dc2626", fontFamily: "sans-serif" }}>{error || "Business not found."}</div>;
 
-  const photos = business.photos || [];
-
+  const photos = /*business.photos ||*/ ["/photos/Chipotle_Entrance_Picture.jpg", "/photos/Chipotle_Interior.jpg", "/photos/Chipotle_Parking.jpeg", "/photos/Chipotle_Bathroom_Pic.jpeg"];
   return (
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 20px" }}>
