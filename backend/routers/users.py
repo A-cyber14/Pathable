@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from models.business import Business
 from services.firebase import db
+from services.scoring import calculate_accessibility_score
 import firebase_admin.auth as firebase_auth
 
 router = APIRouter()
@@ -23,6 +24,18 @@ def get_uid(authorization: str) -> str:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+def _enrich_score(data: dict) -> dict:
+    """Compute accessibility_score and inject it into a Firestore business dict."""
+    try:
+        b = Business.model_validate(data)
+        data = dict(data)
+        data["accessibility_score"] = calculate_accessibility_score(b)
+    except Exception:
+        data = dict(data)
+        data["accessibility_score"] = None
+    return data
+
+
 # ---------------------------------------------------------------------------
 # Profile request/response model
 # ---------------------------------------------------------------------------
@@ -34,7 +47,6 @@ class ProfileUpdate(BaseModel):
 
 # ---------------------------------------------------------------------------
 # GET /api/users/me/profile
-# Returns the current user's disability type and feature preferences
 # ---------------------------------------------------------------------------
 
 @router.get("/me/profile")
@@ -54,7 +66,6 @@ def get_profile(authorization: str = Header(...)):
 
 # ---------------------------------------------------------------------------
 # PUT /api/users/me/profile
-# Updates the current user's disability type and feature preferences
 # ---------------------------------------------------------------------------
 
 @router.put("/me/profile")
@@ -78,7 +89,7 @@ def update_profile(body: ProfileUpdate, authorization: str = Header(...)):
 
 # ---------------------------------------------------------------------------
 # GET /api/users/me/bookmarks
-# Returns full Business objects for every bookmarked business ID
+# Returns full Business objects enriched with accessibility_score
 # ---------------------------------------------------------------------------
 
 @router.get("/me/bookmarks", response_model=list[Business])
@@ -102,6 +113,10 @@ def get_bookmarks(authorization: str = Header(...)):
         if doc.exists:
             data = doc.to_dict()
             data["id"] = doc.id
-            results.append(Business(**data))
+            data = _enrich_score(data)
+            try:
+                results.append(Business.model_validate(data))
+            except Exception:
+                pass
 
     return results

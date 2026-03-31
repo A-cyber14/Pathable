@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel
 from typing import Optional
@@ -9,13 +10,13 @@ from datetime import datetime, timezone
 import firebase_admin.auth as firebase_auth
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 COLLECTION = "businesses"
 
-# Pinellas County center — used to bias Google Places results
-PINELLAS_LAT = 27.9072
-PINELLAS_LNG = -82.7169
-SEARCH_RADIUS_M = 40000  # ~25 miles
+PINELLAS_LAT    = 27.9072
+PINELLAS_LNG    = -82.7169
+SEARCH_RADIUS_M = 40000
 
 
 # ---------------------------------------------------------------------------
@@ -36,7 +37,6 @@ def get_uid(authorization: str) -> str:
 def _enrich_score(data: dict) -> dict:
     """Compute accessibility_score and inject it into a Firestore business dict."""
     try:
-        # Use model_validate so extra Firestore fields are silently ignored
         b = Business.model_validate(data)
         data = dict(data)
         data["accessibility_score"] = calculate_accessibility_score(b)
@@ -48,7 +48,6 @@ def _enrich_score(data: dict) -> dict:
 
 # ---------------------------------------------------------------------------
 # GET /api/businesses
-# All businesses (summary), each enriched with a computed accessibility_score
 # ---------------------------------------------------------------------------
 
 @router.get("/", response_model=list[BusinessSummary])
@@ -65,9 +64,7 @@ def get_all_businesses():
 
 # ---------------------------------------------------------------------------
 # GET /api/businesses/top-rated
-# Top 10 businesses sorted by accessibility_score DESC.
-# Used to populate the homepage map and ranked list panel.
-# Must be registered BEFORE /{business_id}.
+# Top 10 by accessibility_score DESC. Must be before /{business_id}.
 # ---------------------------------------------------------------------------
 
 @router.get("/top-rated", response_model=list[Business])
@@ -93,12 +90,11 @@ def get_top_rated():
 
 # ---------------------------------------------------------------------------
 # GET /api/businesses/search?q=
-# Firestore-only name search (kept for backward compatibility).
-# Must be registered BEFORE /{business_id}.
+# Firestore-only name search. Must be before /{business_id}.
 # ---------------------------------------------------------------------------
 
 @router.get("/search", response_model=list[BusinessSummary])
-def search_businesses(q: str = Query(..., description="Search query — matched against business name")):
+def search_businesses(q: str = Query(...)):
     docs = db.collection(COLLECTION).stream()
     results = []
     q_lower = q.strip().lower()
@@ -113,27 +109,26 @@ def search_businesses(q: str = Query(..., description="Search query — matched 
 
 # ---------------------------------------------------------------------------
 # GET /api/businesses/search-unified?q=
-# Merges Firestore businesses + Google Places results.
-# Returns up to 3 results, DB results first.
-# Must be registered BEFORE /{business_id}.
+# Merges Firestore + Google Places. Returns up to 3 results, DB first.
+# Must be before /{business_id}.
 # ---------------------------------------------------------------------------
 
 class UnifiedSearchResult(BaseModel):
-    id:                 Optional[str]   = None   # Firestore doc id, null for Places-only
-    name:               str
-    address:            str
-    latitude:           Optional[float] = None
-    longitude:          Optional[float] = None
-    in_db:              bool                     # True = exists in our Firestore
-    place_id:           Optional[str]   = None   # Google Places ID
-    accessibility_score: Optional[int]  = None
+    id:                  Optional[str]   = None
+    name:                str
+    address:             str
+    latitude:            Optional[float] = None
+    longitude:           Optional[float] = None
+    in_db:               bool
+    place_id:            Optional[str]   = None
+    accessibility_score: Optional[int]   = None
 
 
 @router.get("/search-unified", response_model=list[UnifiedSearchResult])
-def search_unified(q: str = Query(..., description="Unified search query")):
+def search_unified(q: str = Query(...)):
     q_lower = q.strip().lower()
 
-    # --- 1. Search Firestore ---
+    # 1. Firestore search
     docs = db.collection(COLLECTION).stream()
     db_results: list[UnifiedSearchResult] = []
     db_place_ids: set[str] = set()
@@ -141,9 +136,7 @@ def search_unified(q: str = Query(..., description="Unified search query")):
     for doc in docs:
         data = doc.to_dict()
         data["id"] = doc.id
-        name_match    = q_lower in data.get("name", "").lower()
-        address_match = q_lower in data.get("address", "").lower()
-        if name_match or address_match:
+        if q_lower in data.get("name", "").lower() or q_lower in data.get("address", "").lower():
             data = _enrich_score(data)
             gplace_id = data.get("googlePlaceId") or data.get("place_id")
             if gplace_id:
@@ -159,11 +152,16 @@ def search_unified(q: str = Query(..., description="Unified search query")):
                 accessibility_score=data.get("accessibility_score"),
             ))
 
-    # --- 2. Google Places text search ---
+    # 2. Google Places search
     places_results: list[UnifiedSearchResult] = []
     maps_client = get_maps_client()
 
-    if maps_client:
+    if maps_client is None:
+        logger.warning(
+            "Google Places search skipped — GOOGLE_MAPS_API_KEY not set. "
+            "Add it to your backend .env to enable Places results."
+        )
+    else:
         try:
             response = maps_client.places(
                 query=f"{q} Pinellas County FL",
@@ -172,7 +170,6 @@ def search_unified(q: str = Query(..., description="Unified search query")):
             )
             for place in response.get("results", [])[:5]:
                 place_id = place.get("place_id", "")
-                # Skip if this place is already in our DB
                 if place_id in db_place_ids:
                     continue
                 location = place.get("geometry", {}).get("location", {})
@@ -187,10 +184,9 @@ def search_unified(q: str = Query(..., description="Unified search query")):
                     place_id=place_id,
                     accessibility_score=None,
                 ))
-        except Exception:
-            pass  # Degrade gracefully — return Firestore results only
+        except Exception as e:
+            logger.error(f"Google Places API call failed: {e}")
 
-    # DB results take priority; fill remaining slots with Places results
     slots_remaining = max(0, 3 - len(db_results))
     merged = db_results[:3] + places_results[:slots_remaining]
     return merged[:3]
@@ -287,6 +283,10 @@ def report_business(business_id: str, body: ReportRequest, authorization: str = 
 
 # ---------------------------------------------------------------------------
 # POST /api/businesses/{id}/photos
+#
+# FIX: Immediately appends the photo URL to business.photos so it shows
+# in the gallery on next page load without waiting for admin approval.
+# The contribution record is still written for the moderation audit trail.
 # ---------------------------------------------------------------------------
 
 class PhotoSubmission(BaseModel):
@@ -300,9 +300,13 @@ class PhotoSubmission(BaseModel):
 def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = Header(...)):
     uid = get_uid(authorization)
 
-    if not db.collection(COLLECTION).document(business_id).get().exists:
+    # Fetch the doc once — used for existence check AND current photos list
+    biz_ref = db.collection(COLLECTION).document(business_id)
+    biz_doc = biz_ref.get()
+    if not biz_doc.exists:
         raise HTTPException(status_code=404, detail=f"Business '{business_id}' not found")
 
+    # Contribution record for moderation audit trail
     db.collection("contributions").add({
         "businessId": business_id,
         "userId":     uid,
@@ -316,7 +320,12 @@ def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = H
         "createdAt":  datetime.now(timezone.utc).isoformat(),
     })
 
-    return {"message": "Photo submitted for review"}
+    # Immediately append to business.photos for gallery display
+    current_photos = biz_doc.to_dict().get("photos", [])
+    if body.photoUrl not in current_photos:
+        biz_ref.update({"photos": current_photos + [body.photoUrl]})
+
+    return {"message": "Photo submitted and added to gallery"}
 
 
 # ---------------------------------------------------------------------------

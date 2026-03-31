@@ -1,7 +1,7 @@
 """
 Pathable — Firestore Seed Script
 =================================
-Populates Firestore with the 10 Pinellas County partner businesses.
+Populates Firestore with the Pinellas County partner businesses.
 
 USAGE:
     cd backend
@@ -16,15 +16,12 @@ TO UPDATE BUSINESS DATA:
 import sys
 import os
 
-# Allow imports from backend root when running as a script
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from services.firebase import db
 
 # ===========================================================================
 # EDIT THIS SECTION
-# Add, remove, or update businesses here.
-# All fields are required unless marked optional.
 # ===========================================================================
 
 BUSINESSES = [
@@ -148,6 +145,18 @@ BUSINESSES = [
         "community_score": None,
         "photos": [],
     },
+    {
+        "id": "chipotle-palm-harbor",
+        "name": "Chipotle Mexican Grill",
+        "address": "35044 US Hwy 19 N, Palm Harbor, FL 34684",
+        "latitude": 28.0847,
+        "longitude": -82.7326,
+        "wheelchair_accessible": True,
+        "accessible_parking": True,
+        "entrance_width_rating": "standard",
+        "community_score": None,
+        "photos": [],
+    },
 ]
 
 # ===========================================================================
@@ -170,7 +179,6 @@ def seed():
             skipped += 1
             continue
 
-        # Write everything except the id field (id lives on the doc reference)
         data = {k: v for k, v in business.items() if k != "id"}
         doc_ref.set(data)
         print(f"  OK    {doc_id}")
