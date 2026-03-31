@@ -9,7 +9,7 @@
 import axios from "axios";
 import { auth } from "../firebase";
 
-const BASE_URL = "https://pathable-production.up.railway.app" || "http://localhost:8000";
+const BASE_URL = /*import.meta.env.VITE_API_BASE_URL ||*/ "http://localhost:8000";
 
 // ---------------------------------------------------------------------------
 // Axios instance
@@ -172,5 +172,4 @@ export async function submitPhoto(businessId, data) {
 export async function submitFeatures(businessId, data) {
   return api.post(`/api/businesses/${businessId}/features`, data);
 }
-
 
