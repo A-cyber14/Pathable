@@ -1,0 +1,12 @@
+[
+    {
+      "origin": [
+        "http://localhost:5173",
+        "https://pathable-eta.vercel.app",
+        "https://pathable-git-main-heysuss1s-projects.vercel.app"
+      ],
+      "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
+      "responseHeader": ["Content-Type", "Authorization", "Content-Length"],
+      "maxAgeSeconds": 3600
+    }
+  ]

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Find accessible locations in Pinellas County, FL" />
+    <title>Pathable</title>
+
+    <!--
+      Google Maps JavaScript API
+      Key is injected at build time from VITE_GOOGLE_MAPS_API_KEY in .env
+      Used ONLY for map rendering — all Places/search calls go through FastAPI
+    -->
+    <script>
+      // Vite replaces import.meta.env at build time but cannot do so inside
+      // a plain <script src>. We read the key from a global injected below,
+      // then dynamically append the Maps script so the key stays out of
+      // the static HTML and is only resolved at runtime via Vite's env system.
+      window.__initGoogleMaps = function () {
+        // Maps JS API is ready — nothing to do, MapView.jsx uses window.google directly
+      };
+    </script>
+    <script type="module">
+      const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      if (key) {
+        const script = document.createElement("script");
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&callback=__initGoogleMaps`;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      } else {
+        console.warn("Pathable: VITE_GOOGLE_MAPS_API_KEY is not set — map will not load.");
+      }
+    </script>
+
+    <style>
+      /* Reset — ensure map fills viewport with no scroll caused by default margins */
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body, #root { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
