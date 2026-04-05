@@ -1,34 +1,176 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getBusiness, addBookmark, getProfile } from "../services/api";
+import { getBusiness, addBookmark, getProfile, getBusinessPhotos } from "../services/api";
 
+// ---------------------------------------------------------------------------
+// PHOTO_SLOTS — one slot per category, label must match category strings
+// sent by ContributePhotosPage exactly.
+// ---------------------------------------------------------------------------
 const PHOTO_SLOTS = [
-  { label: "Entrance",            icon: "🚪" },
-  { label: "Bathroom",            icon: "🚻" },
-  { label: "Parking Lot",         icon: "🚗" },
-  { label: "Interior Navigation", icon: "🗺" },
-  { label: "Seating / Service",   icon: "🪑" },
-  { label: "Other",               icon: "📷" },
+  { label: "Entrance",          category: "Entrance",          icon: "🚪" },
+  { label: "Bathroom",          category: "Bathroom",          icon: "🚻" },
+  { label: "Parking Lot",       category: "Parking Lot",       icon: "🚗" },
+  { label: "Interior",          category: "Interior",          icon: "🗺" },
+  { label: "Seating / Service", category: "Seating / Service", icon: "🪑" },
+  { label: "Other",             category: "Other",             icon: "📷" },
 ];
 
 // ---------------------------------------------------------------------------
-// calculatePathableScore
-<<<<<<< HEAD
-// Used ONLY for the breakdown detail inside the dropdown modal.
-// The headline score displayed on the badge always comes from business.accessibility_score
-// (computed by backend scoring.py) — that is the single source of truth.
+// PhotoModal
+// Opens over the page when a category slot with photos is clicked.
+// Props:
+//   photos       — array of photo objects for this category (newest-first)
+//   category     — display name of the category
+//   initialIndex — which photo to open on
+//   onClose      — called when modal should close
 // ---------------------------------------------------------------------------
-function calculatePathableScore(business, userPreferences = []) {
-=======
-//
+function PhotoModal({ photos, category, initialIndex, onClose }) {
+  const [index, setIndex] = useState(initialIndex);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape")     onClose();
+      if (e.key === "ArrowRight") setIndex((i) => Math.min(i + 1, photos.length - 1));
+      if (e.key === "ArrowLeft")  setIndex((i) => Math.max(i - 1, 0));
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [photos.length, onClose]);
+
+  const photo = photos[index];
+  if (!photo) return null;
+
+  const navBtnStyle = {
+    position:        "absolute",
+    top:             "50%",
+    transform:       "translateY(-50%)",
+    background:      "rgba(255,255,255,0.15)",
+    border:          "none",
+    color:           "#fff",
+    fontSize:        "28px",
+    cursor:          "pointer",
+    width:           "44px",
+    height:          "44px",
+    borderRadius:    "50%",
+    display:         "flex",
+    alignItems:      "center",
+    justifyContent:  "center",
+    flexShrink:      0,
+    transition:      "background 0.15s",
+  };
+
+  return (
+    // Backdrop — click outside image to close
+    <div
+      onClick={onClose}
+      style={{
+        position:        "fixed",
+        inset:           0,
+        backgroundColor: "rgba(0,0,0,0.88)",
+        zIndex:          200,
+        display:         "flex",
+        flexDirection:   "column",
+        alignItems:      "center",
+        justifyContent:  "center",
+        padding:         "16px",
+      }}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        style={{
+          position:   "absolute",
+          top:        "16px",
+          right:      "20px",
+          background: "none",
+          border:     "none",
+          color:      "#fff",
+          fontSize:   "28px",
+          cursor:     "pointer",
+          lineHeight: 1,
+          padding:    "4px",
+        }}
+      >
+        ✕
+      </button>
+
+      {/* Counter */}
+      <div style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "12px", userSelect: "none" }}>
+        {category} · {index + 1} / {photos.length}
+      </div>
+
+      {/* Image + prev/next row */}
+      <div
+        style={{
+          display:    "flex",
+          alignItems: "center",
+          gap:        "12px",
+          width:      "100%",
+          maxWidth:   "860px",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Prev */}
+        <button
+          onClick={() => setIndex((i) => Math.max(i - 1, 0))}
+          disabled={index === 0}
+          style={{ ...navBtnStyle, opacity: index === 0 ? 0.2 : 1 }}
+        >
+          ‹
+        </button>
+
+        {/* Image */}
+        <img
+          src={photo.photoUrl}
+          alt={photo.caption || category}
+          style={{
+            flex:         1,
+            maxHeight:    "70vh",
+            objectFit:    "contain",
+            borderRadius: "10px",
+            display:      "block",
+            minWidth:     0,
+          }}
+        />
+
+        {/* Next */}
+        <button
+          onClick={() => setIndex((i) => Math.min(i + 1, photos.length - 1))}
+          disabled={index === photos.length - 1}
+          style={{ ...navBtnStyle, opacity: index === photos.length - 1 ? 0.2 : 1 }}
+        >
+          ›
+        </button>
+      </div>
+
+      {/* Caption */}
+      {photo.caption && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            color:      "#d1d5db",
+            fontSize:   "13px",
+            marginTop:  "12px",
+            maxWidth:   "600px",
+            textAlign:  "center",
+            lineHeight: "1.5",
+          }}
+        >
+          {photo.caption}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// calculatePathableScore
 // Score = featuresScore + preferenceScore + confidenceRaw
 // This is the ONLY place scores are calculated for display.
-// The badge always shows s.total — the exact sum of the three sections below.
 // ---------------------------------------------------------------------------
 function calculatePathableScore(business, userPreferences = []) {
 
-  // --- 1. FEATURES SCORE (0–50) ---
->>>>>>> origin/main
   const featureChecks = [
     { key: "wheelchair_accessible", label: "Ramps / Wheelchair Access", icon: "♿", weight: 15 },
     { key: "accessible_parking",    label: "Accessible Parking",         icon: "🚗", weight: 10 },
@@ -50,10 +192,6 @@ function calculatePathableScore(business, userPreferences = []) {
 
   const featuresScore = features.reduce((sum, f) => sum + (f.present ? f.weight : 0), 0);
 
-<<<<<<< HEAD
-=======
-  // --- 2. PREFERENCE MATCH SCORE (0–30) ---
->>>>>>> origin/main
   const prefToFeature = {
     accessible_parking:   "accessible_parking",
     wide_entrances:       "entrance_width",
@@ -81,10 +219,6 @@ function calculatePathableScore(business, userPreferences = []) {
     ? Math.round((matchedCount / totalPrefs) * 100)
     : null;
 
-<<<<<<< HEAD
-=======
-  // --- 3. CONFIDENCE SCORE (0–20) ---
->>>>>>> origin/main
   const filledFields = features.filter((f) => {
     if (f.key === "entrance_width") return business.entrance_width_rating != null;
     return business[f.key] !== undefined && business[f.key] !== null;
@@ -100,10 +234,6 @@ function calculatePathableScore(business, userPreferences = []) {
     confidenceRaw >= 15 ? "#16a34a" :
     confidenceRaw >= 8  ? "#d97706" : "#dc2626";
 
-<<<<<<< HEAD
-  return {
-=======
-  // --- TOTAL — badge always shows this exact number ---
   const total = featuresScore + preferenceScore + confidenceRaw;
 
   const scoreColor  = total >= 75 ? "#16a34a" : total >= 50 ? "#d97706" : "#dc2626";
@@ -112,7 +242,6 @@ function calculatePathableScore(business, userPreferences = []) {
 
   return {
     total,
->>>>>>> origin/main
     featuresScore,
     preferenceScore,
     confidenceRaw,
@@ -123,27 +252,12 @@ function calculatePathableScore(business, userPreferences = []) {
     matchedCount,
     totalPrefs,
     matchPercent,
-<<<<<<< HEAD
-  };
-}
-
-function scoreColors(score) {
-  if (score >= 75) return { color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" };
-  if (score >= 50) return { color: "#d97706", bg: "#fffbeb", border: "#fde68a" };
-  return { color: "#dc2626", bg: "#fef2f2", border: "#fecaca" };
-}
-
-=======
     scoreColor,
     scoreBg,
     scoreBorder,
   };
 }
 
->>>>>>> origin/main
-// ---------------------------------------------------------------------------
-// ScoreBar
-// ---------------------------------------------------------------------------
 function ScoreBar({ value, max, color }) {
   return (
     <div style={{ flex: 1, height: "6px", backgroundColor: "#e5e7eb", borderRadius: "999px", overflow: "hidden" }}>
@@ -152,38 +266,12 @@ function ScoreBar({ value, max, color }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// PathableRatingBadge
-<<<<<<< HEAD
-//
-// Displays business.accessibility_score (from backend) as the headline number.
-// The breakdown modal shows feature/preference/confidence components for context.
-// ---------------------------------------------------------------------------
 function PathableRatingBadge({ business, userPreferences }) {
   const [open, setOpen] = useState(false);
-
-  // Backend score is the single source of truth — fall back to null if missing
-  const displayTotal = business.accessibility_score ?? null;
-  const { color, bg, border } = displayTotal != null
-    ? scoreColors(displayTotal)
-    : { color: "#9ca3af", bg: "#f3f4f6", border: "#e5e7eb" };
-
-  // Breakdown data (for the modal detail rows only — not used for the headline)
-=======
-// Badge shows s.total — the literal sum of the three breakdown sections.
-// ---------------------------------------------------------------------------
-function PathableRatingBadge({ business, userPreferences }) {
-  const [open, setOpen] = useState(false);
->>>>>>> origin/main
   const s = calculatePathableScore(business, userPreferences);
 
   return (
     <div style={{ position: "relative" }}>
-
-<<<<<<< HEAD
-      {/* Badge */}
-=======
->>>>>>> origin/main
       <button
         onClick={() => setOpen((v) => !v)}
         title="Click to see score breakdown"
@@ -192,53 +280,32 @@ function PathableRatingBadge({ business, userPreferences }) {
         <span style={{ fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
           Pathable Score
         </span>
-<<<<<<< HEAD
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: bg, border: `1.5px solid ${border}`, borderRadius: "10px", padding: "6px 14px" }}>
-          <span style={{ fontSize: "24px", fontWeight: "800", color, lineHeight: 1 }}>
-            {displayTotal ?? "—"}
-=======
         <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: s.scoreBg, border: `1.5px solid ${s.scoreBorder}`, borderRadius: "10px", padding: "6px 14px" }}>
           <span style={{ fontSize: "24px", fontWeight: "800", color: s.scoreColor, lineHeight: 1 }}>
             {s.total}
->>>>>>> origin/main
           </span>
           <span style={{ fontSize: "13px", color: "#9ca3af" }}>/100</span>
           <span style={{ fontSize: "11px", color: "#9ca3af" }}>▾</span>
         </div>
       </button>
 
-<<<<<<< HEAD
-      {/* Breakdown dropdown */}
-=======
->>>>>>> origin/main
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
           <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: "320px", backgroundColor: "#fff", border: "1.5px solid #e5e7eb", borderRadius: "14px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, overflow: "hidden" }}>
 
-<<<<<<< HEAD
-            {/* Header — uses backend score */}
-            <div style={{ padding: "14px 16px", backgroundColor: bg, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-=======
             <div style={{ padding: "14px 16px", backgroundColor: s.scoreBg, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
->>>>>>> origin/main
               <div>
                 <div style={{ fontWeight: "700", fontSize: "14px", color: "#111827" }}>Score Breakdown</div>
                 <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>How this rating is calculated</div>
               </div>
-<<<<<<< HEAD
-              <div style={{ fontSize: "28px", fontWeight: "800", color }}>
-                {displayTotal ?? "—"}<span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>/100</span>
-=======
               <div style={{ fontSize: "28px", fontWeight: "800", color: s.scoreColor }}>
                 {s.total}<span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>/100</span>
->>>>>>> origin/main
               </div>
             </div>
 
             <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "16px" }}>
 
-              {/* Features */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Accessibility Features</span>
@@ -258,11 +325,6 @@ function PathableRatingBadge({ business, userPreferences }) {
                 </div>
               </div>
 
-<<<<<<< HEAD
-              {/* Preference match */}
-=======
-              {/* Preference Match */}
->>>>>>> origin/main
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Your Preference Match</span>
@@ -276,7 +338,6 @@ function PathableRatingBadge({ business, userPreferences }) {
                 </div>
               </div>
 
-              {/* Confidence */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Data Confidence</span>
@@ -296,13 +357,6 @@ function PathableRatingBadge({ business, userPreferences }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-<<<<<<< HEAD
-// FeatureCard + CheckRow helpers
-=======
-// FeatureCard + CheckRow
->>>>>>> origin/main
-// ---------------------------------------------------------------------------
 function FeatureCard({ title, icon, children }) {
   return (
     <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "20px", flex: "1 1 calc(50% - 8px)", minWidth: "240px" }}>
@@ -340,6 +394,9 @@ export default function BusinessDetailPage() {
   const [bookmarked,  setBookmarked]  = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [userPrefs,   setUserPrefs]   = useState([]);
+  const [allPhotos,   setAllPhotos]   = useState([]);
+  // modal: null | { category: string, index: number }
+  const [modal,       setModal]       = useState(null);
 
   useEffect(() => {
     getBusiness(id)
@@ -349,10 +406,28 @@ export default function BusinessDetailPage() {
   }, [id]);
 
   useEffect(() => {
+    if (!id) return;
+    getBusinessPhotos(id)
+      .then(setAllPhotos)
+      .catch(() => setAllPhotos([]));
+  }, [id]);
+
+  useEffect(() => {
     getProfile()
       .then((data) => setUserPrefs(data.featurePreferences || []))
       .catch(() => {});
   }, []);
+
+  // Group photos by category — newest-first within each group (API already sorts)
+  const groupedPhotos = useMemo(() => {
+    const groups = {};
+    allPhotos.forEach((photo) => {
+      const cat = photo.category || "Other";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(photo);
+    });
+    return groups;
+  }, [allPhotos]);
 
   const handleBookmark = async () => {
     if (bookmarked || bookmarking) return;
@@ -370,12 +445,6 @@ export default function BusinessDetailPage() {
   if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "#6b7280", fontFamily: "sans-serif" }}>Loading...</div>;
   if (error || !business) return <div style={{ padding: "40px", textAlign: "center", color: "#dc2626", fontFamily: "sans-serif" }}>{error || "Business not found."}</div>;
 
-<<<<<<< HEAD
-  const photos = business.photos || [];
-
-=======
-  const photos = /*business.photos ||*/ ["/photos/Chipotle_Entrance_Picture.jpg", "/photos/Chipotle_Interior.jpg", "/photos/Chipotle_Parking.jpeg", "/photos/Chipotle_Bathroom_Pic.jpeg"];
->>>>>>> origin/main
   return (
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 20px" }}>
@@ -397,22 +466,102 @@ export default function BusinessDetailPage() {
           <p style={{ margin: "0 0 28px", fontSize: "15px", color: "#374151", lineHeight: "1.6" }}>{business.description}</p>
         )}
 
-        {/* Photos */}
+        {/* ----------------------------------------------------------------
+            Photos — category grid
+            One slot per category. Clicking a slot with photos opens modal.
+        ---------------------------------------------------------------- */}
         <div style={{ marginBottom: "28px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
             <span style={{ fontSize: "16px" }}>🖼</span>
             <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" }}>Photos</h2>
-            <span style={{ backgroundColor: photos.length > 0 ? "#111827" : "#e5e7eb", color: photos.length > 0 ? "#fff" : "#6b7280", borderRadius: "999px", padding: "1px 8px", fontSize: "12px", fontWeight: "600" }}>
-              {photos.length}
+            <span
+              style={{
+                backgroundColor: allPhotos.length > 0 ? "#111827" : "#e5e7eb",
+                color:           allPhotos.length > 0 ? "#fff"    : "#6b7280",
+                borderRadius:    "999px",
+                padding:         "1px 8px",
+                fontSize:        "12px",
+                fontWeight:      "600",
+              }}
+            >
+              {allPhotos.length}
             </span>
           </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-            {PHOTO_SLOTS.map((slot, i) => {
-              const url = photos[i];
-              return url ? (
-                <img key={i} src={url} alt={slot.label} style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", borderRadius: "10px", display: "block" }} />
+            {PHOTO_SLOTS.map((slot) => {
+              const slotPhotos = groupedPhotos[slot.category] || [];
+              const preview    = slotPhotos[0]; // newest (API sorts newest-first)
+
+              return preview ? (
+                // ── Slot with photo ──
+                <div
+                  key={slot.category}
+                  onClick={() => setModal({ category: slot.category, index: 0 })}
+                  style={{
+                    position:     "relative",
+                    cursor:       "pointer",
+                    borderRadius: "10px",
+                    overflow:     "hidden",
+                    aspectRatio:  "4/3",
+                  }}
+                >
+                  <img
+                    src={preview.photoUrl}
+                    alt={slot.label}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+
+                  {/* Bottom gradient overlay with label + count badge */}
+                  <div
+                    style={{
+                      position:   "absolute",
+                      bottom:     0,
+                      left:       0,
+                      right:      0,
+                      padding:    "20px 8px 7px",
+                      background: "linear-gradient(transparent, rgba(0,0,0,0.55))",
+                      display:    "flex",
+                      alignItems: "flex-end",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span style={{ fontSize: "11px", color: "#fff", fontWeight: "600" }}>
+                      {slot.label}
+                    </span>
+                    {slotPhotos.length > 1 && (
+                      <span
+                        style={{
+                          fontSize:        "11px",
+                          fontWeight:      "700",
+                          color:           "#fff",
+                          backgroundColor: "rgba(0,0,0,0.45)",
+                          borderRadius:    "999px",
+                          padding:         "1px 7px",
+                        }}
+                      >
+                        +{slotPhotos.length - 1}
+                      </span>
+                    )}
+                  </div>
+                </div>
               ) : (
-                <div key={i} style={{ aspectRatio: "4/3", borderRadius: "10px", backgroundColor: "#f3f4f6", border: "2px dashed #d1d5db", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "6px", padding: "8px" }}>
+                // ── Empty slot ──
+                <div
+                  key={slot.category}
+                  style={{
+                    aspectRatio:     "4/3",
+                    borderRadius:    "10px",
+                    backgroundColor: "#f3f4f6",
+                    border:          "2px dashed #d1d5db",
+                    display:         "flex",
+                    flexDirection:   "column",
+                    alignItems:      "center",
+                    justifyContent:  "center",
+                    gap:             "6px",
+                    padding:         "8px",
+                  }}
+                >
                   <span style={{ fontSize: "22px" }}>{slot.icon}</span>
                   <span style={{ fontSize: "11px", color: "#9ca3af", textAlign: "center", fontWeight: "500" }}>{slot.label}</span>
                   <span style={{ fontSize: "10px", color: "#d1d5db" }}>No photo yet</span>
@@ -473,6 +622,16 @@ export default function BusinessDetailPage() {
         </div>
 
       </div>
+
+      {/* Photo modal — rendered outside the scrollable content div */}
+      {modal && (
+        <PhotoModal
+          photos={groupedPhotos[modal.category] || []}
+          category={modal.category}
+          initialIndex={modal.index}
+          onClose={() => setModal(null)}
+        />
+      )}
     </div>
   );
 }

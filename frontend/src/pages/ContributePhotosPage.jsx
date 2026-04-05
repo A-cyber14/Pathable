@@ -20,6 +20,16 @@ const CATEGORIES = [
   "Other",
 ];
 
+// Maps display category to the folder slug used in Firebase Storage paths
+const CATEGORY_SLUG = {
+  "Entrance":          "entrance",
+  "Bathroom":          "bathroom",
+  "Parking Lot":       "parking",
+  "Interior":          "interior",
+  "Seating / Service": "seating",
+  "Other":             "other",
+};
+
 // ---------------------------------------------------------------------------
 // ContributePhotosPage
 // Route: /contribute/photos (protected)
@@ -27,9 +37,9 @@ const CATEGORIES = [
 // Upload flow:
 //   1. User picks file via drag-drop or file picker
 //   2. Preview shown locally (no upload yet)
-//   3. On submit → upload to Firebase Storage
+//   3. On submit → upload to Firebase Storage under category subfolder
 //   4. Get download URL → send to FastAPI backend
-//   5. Backend stores metadata in Firestore
+//   5. Backend writes to contributions (moderation) + photos subcollection (display)
 // ---------------------------------------------------------------------------
 export default function ContributePhotosPage() {
   const navigate = useNavigate();
@@ -70,11 +80,12 @@ export default function ContributePhotosPage() {
     setSuccess(false);
 
     try {
-      // Step 1 — Upload file to Firebase Storage
-      const ext         = file.name.split(".").pop();
-      const storagePath = `business-photos/${businessId}/${generateId()}.${ext}`;
-      const storageRef  = ref(storage, storagePath);
-      const uploadTask  = uploadBytesResumable(storageRef, file);
+      // Step 1 — Upload file to Firebase Storage under category subfolder
+      const ext          = file.name.split(".").pop();
+      const categorySlug = CATEGORY_SLUG[category] || "other";
+      const storagePath  = `business-photos/${businessId}/${categorySlug}/${generateId()}.${ext}`;
+      const storageRef   = ref(storage, storagePath);
+      const uploadTask   = uploadBytesResumable(storageRef, file);
 
       // Wait for upload, track progress
       const downloadUrl = await new Promise((resolve, reject) => {
@@ -144,7 +155,7 @@ export default function ContributePhotosPage() {
         {/* Success */}
         {success && (
           <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "14px", color: "#15803d" }}>
-            ✓ Photo uploaded and submitted for review. Thank you for contributing!
+            ✓ Photo uploaded and is now visible on the business page.
           </div>
         )}
 
