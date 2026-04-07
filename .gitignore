@@ -41,4 +41,4 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-*.swo
+*.swo.DS_Store

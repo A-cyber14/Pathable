@@ -50,6 +50,7 @@ api.interceptors.response.use(
   }
 );
 
+<<<<<<< HEAD
 // ---------------------------------------------------------------------------
 // getBusinesses()
 // ---------------------------------------------------------------------------
@@ -143,3 +144,19 @@ export async function submitPhoto(businessId, data) {
 export async function submitFeatures(businessId, data) {
   return api.post(`/api/businesses/${businessId}/features`, data);
 }
+=======
+export async function getBusinesses()          { return api.get("/api/businesses"); }
+export async function getTopRated()            { return api.get("/api/businesses/top-rated"); }
+export async function getBusiness(id)          { return api.get(`/api/businesses/${id}`); }
+export async function getBusinessPhotos(id)    { return api.get(`/api/businesses/${id}/photos`); }
+export async function searchBusinesses(query)  { return query?.trim() ? api.get(`/api/businesses/search?q=${encodeURIComponent(query.trim())}`) : getBusinesses(); }
+export async function searchUnified(query)     { return query?.trim() ? api.get(`/api/businesses/search-unified?q=${encodeURIComponent(query.trim())}`) : []; }
+export async function submitReview(data)       { return api.post("/api/reviews", data); }
+export async function getBookmarks()           { return api.get("/api/users/me/bookmarks"); }
+export async function addBookmark(id)          { return api.post(`/api/businesses/${id}/bookmark`); }
+export async function removeBookmark(id)       { return api.delete(`/api/businesses/${id}/bookmark`); }
+export async function getProfile()             { return api.get("/api/users/me/profile"); }
+export async function updateProfile(data)      { return api.put("/api/users/me/profile", data); }
+export async function submitPhoto(id, data)    { return api.post(`/api/businesses/${id}/photos`, data); }
+export async function submitFeatures(id, data) { return api.post(`/api/businesses/${id}/features`, data); }
+>>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d

@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+<<<<<<< HEAD
 import { getBusiness, addBookmark } from "../services/api";
 import PhotoGallery from "../components/PhotoGallery";
 
@@ -7,6 +8,365 @@ import PhotoGallery from "../components/PhotoGallery";
 // Feature card
 // ---------------------------------------------------------------------------
 
+=======
+import { getBusiness, addBookmark, getProfile, getBusinessPhotos } from "../services/api";
+
+// ---------------------------------------------------------------------------
+// PHOTO_SLOTS — one slot per category, label must match category strings
+// sent by ContributePhotosPage exactly.
+// ---------------------------------------------------------------------------
+const PHOTO_SLOTS = [
+  { label: "Entrance",          category: "Entrance",          icon: "🚪" },
+  { label: "Bathroom",          category: "Bathroom",          icon: "🚻" },
+  { label: "Parking Lot",       category: "Parking Lot",       icon: "🚗" },
+  { label: "Interior",          category: "Interior",          icon: "🗺" },
+  { label: "Seating / Service", category: "Seating / Service", icon: "🪑" },
+  { label: "Other",             category: "Other",             icon: "📷" },
+];
+
+// ---------------------------------------------------------------------------
+// PhotoModal
+// Opens over the page when a category slot with photos is clicked.
+// Props:
+//   photos       — array of photo objects for this category (newest-first)
+//   category     — display name of the category
+//   initialIndex — which photo to open on
+//   onClose      — called when modal should close
+// ---------------------------------------------------------------------------
+function PhotoModal({ photos, category, initialIndex, onClose }) {
+  const [index, setIndex] = useState(initialIndex);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape")     onClose();
+      if (e.key === "ArrowRight") setIndex((i) => Math.min(i + 1, photos.length - 1));
+      if (e.key === "ArrowLeft")  setIndex((i) => Math.max(i - 1, 0));
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [photos.length, onClose]);
+
+  const photo = photos[index];
+  if (!photo) return null;
+
+  const navBtnStyle = {
+    position:        "absolute",
+    top:             "50%",
+    transform:       "translateY(-50%)",
+    background:      "rgba(255,255,255,0.15)",
+    border:          "none",
+    color:           "#fff",
+    fontSize:        "28px",
+    cursor:          "pointer",
+    width:           "44px",
+    height:          "44px",
+    borderRadius:    "50%",
+    display:         "flex",
+    alignItems:      "center",
+    justifyContent:  "center",
+    flexShrink:      0,
+    transition:      "background 0.15s",
+  };
+
+  return (
+    // Backdrop — click outside image to close
+    <div
+      onClick={onClose}
+      style={{
+        position:        "fixed",
+        inset:           0,
+        backgroundColor: "rgba(0,0,0,0.88)",
+        zIndex:          200,
+        display:         "flex",
+        flexDirection:   "column",
+        alignItems:      "center",
+        justifyContent:  "center",
+        padding:         "16px",
+      }}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        style={{
+          position:   "absolute",
+          top:        "16px",
+          right:      "20px",
+          background: "none",
+          border:     "none",
+          color:      "#fff",
+          fontSize:   "28px",
+          cursor:     "pointer",
+          lineHeight: 1,
+          padding:    "4px",
+        }}
+      >
+        ✕
+      </button>
+
+      {/* Counter */}
+      <div style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "12px", userSelect: "none" }}>
+        {category} · {index + 1} / {photos.length}
+      </div>
+
+      {/* Image + prev/next row */}
+      <div
+        style={{
+          display:    "flex",
+          alignItems: "center",
+          gap:        "12px",
+          width:      "100%",
+          maxWidth:   "860px",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Prev */}
+        <button
+          onClick={() => setIndex((i) => Math.max(i - 1, 0))}
+          disabled={index === 0}
+          style={{ ...navBtnStyle, opacity: index === 0 ? 0.2 : 1 }}
+        >
+          ‹
+        </button>
+
+        {/* Image */}
+        <img
+          src={photo.photoUrl}
+          alt={photo.caption || category}
+          style={{
+            flex:         1,
+            maxHeight:    "70vh",
+            objectFit:    "contain",
+            borderRadius: "10px",
+            display:      "block",
+            minWidth:     0,
+          }}
+        />
+
+        {/* Next */}
+        <button
+          onClick={() => setIndex((i) => Math.min(i + 1, photos.length - 1))}
+          disabled={index === photos.length - 1}
+          style={{ ...navBtnStyle, opacity: index === photos.length - 1 ? 0.2 : 1 }}
+        >
+          ›
+        </button>
+      </div>
+
+      {/* Caption */}
+      {photo.caption && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            color:      "#d1d5db",
+            fontSize:   "13px",
+            marginTop:  "12px",
+            maxWidth:   "600px",
+            textAlign:  "center",
+            lineHeight: "1.5",
+          }}
+        >
+          {photo.caption}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// calculatePathableScore
+// Score = featuresScore + preferenceScore + confidenceRaw
+// This is the ONLY place scores are calculated for display.
+// ---------------------------------------------------------------------------
+function calculatePathableScore(business, userPreferences = []) {
+
+  const featureChecks = [
+    { key: "wheelchair_accessible", label: "Ramps / Wheelchair Access", icon: "♿", weight: 15 },
+    { key: "accessible_parking",    label: "Accessible Parking",         icon: "🚗", weight: 10 },
+    { key: "entrance_width",        label: "Accessible Entrance Width",  icon: "🚪", weight: 10 },
+    { key: "accessible_restrooms",  label: "Accessible Restrooms",       icon: "🚻", weight: 8  },
+    { key: "elevator",              label: "Elevator",                   icon: "🛗", weight: 4  },
+    { key: "auto_doors",            label: "Automatic Doors",            icon: "🔄", weight: 3  },
+  ];
+
+  const features = featureChecks.map((f) => {
+    let present = false;
+    if (f.key === "entrance_width") {
+      present = business.entrance_width_rating === "wide" || business.entrance_width_rating === "standard";
+    } else {
+      present = !!business[f.key];
+    }
+    return { ...f, present };
+  });
+
+  const featuresScore = features.reduce((sum, f) => sum + (f.present ? f.weight : 0), 0);
+
+  const prefToFeature = {
+    accessible_parking:   "accessible_parking",
+    wide_entrances:       "entrance_width",
+    accessible_restrooms: "accessible_restrooms",
+    elevators:            "elevator",
+    automatic_doors:      "auto_doors",
+  };
+
+  let matchedCount = 0;
+  const totalPrefs = userPreferences.length;
+
+  userPreferences.forEach((pref) => {
+    const featureKey = prefToFeature[pref];
+    if (featureKey) {
+      const feature = features.find((f) => f.key === featureKey);
+      if (feature?.present) matchedCount++;
+    }
+  });
+
+  const preferenceScore = totalPrefs > 0
+    ? Math.round((matchedCount / totalPrefs) * 30)
+    : 15;
+
+  const matchPercent = totalPrefs > 0
+    ? Math.round((matchedCount / totalPrefs) * 100)
+    : null;
+
+  const filledFields = features.filter((f) => {
+    if (f.key === "entrance_width") return business.entrance_width_rating != null;
+    return business[f.key] !== undefined && business[f.key] !== null;
+  }).length;
+
+  const confidenceRaw = Math.round((filledFields / features.length) * 20);
+
+  const confidenceLabel =
+    confidenceRaw >= 15 ? "High"   :
+    confidenceRaw >= 8  ? "Medium" : "Low";
+
+  const confidenceColor =
+    confidenceRaw >= 15 ? "#16a34a" :
+    confidenceRaw >= 8  ? "#d97706" : "#dc2626";
+
+  const total = featuresScore + preferenceScore + confidenceRaw;
+
+  const scoreColor  = total >= 75 ? "#16a34a" : total >= 50 ? "#d97706" : "#dc2626";
+  const scoreBg     = total >= 75 ? "#f0fdf4" : total >= 50 ? "#fffbeb" : "#fef2f2";
+  const scoreBorder = total >= 75 ? "#bbf7d0" : total >= 50 ? "#fde68a" : "#fecaca";
+
+  return {
+    total,
+    featuresScore,
+    preferenceScore,
+    confidenceRaw,
+    confidenceLabel,
+    confidenceColor,
+    confidencePct: Math.round((filledFields / features.length) * 100),
+    features,
+    matchedCount,
+    totalPrefs,
+    matchPercent,
+    scoreColor,
+    scoreBg,
+    scoreBorder,
+  };
+}
+
+function ScoreBar({ value, max, color }) {
+  return (
+    <div style={{ flex: 1, height: "6px", backgroundColor: "#e5e7eb", borderRadius: "999px", overflow: "hidden" }}>
+      <div style={{ width: `${(value / max) * 100}%`, height: "100%", backgroundColor: color, borderRadius: "999px" }} />
+    </div>
+  );
+}
+
+function PathableRatingBadge({ business, userPreferences }) {
+  const [open, setOpen] = useState(false);
+  const s = calculatePathableScore(business, userPreferences);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Click to see score breakdown"
+        style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+      >
+        <span style={{ fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          Pathable Score
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: s.scoreBg, border: `1.5px solid ${s.scoreBorder}`, borderRadius: "10px", padding: "6px 14px" }}>
+          <span style={{ fontSize: "24px", fontWeight: "800", color: s.scoreColor, lineHeight: 1 }}>
+            {s.total}
+          </span>
+          <span style={{ fontSize: "13px", color: "#9ca3af" }}>/100</span>
+          <span style={{ fontSize: "11px", color: "#9ca3af" }}>▾</span>
+        </div>
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
+          <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: "320px", backgroundColor: "#fff", border: "1.5px solid #e5e7eb", borderRadius: "14px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, overflow: "hidden" }}>
+
+            <div style={{ padding: "14px 16px", backgroundColor: s.scoreBg, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: "700", fontSize: "14px", color: "#111827" }}>Score Breakdown</div>
+                <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>How this rating is calculated</div>
+              </div>
+              <div style={{ fontSize: "28px", fontWeight: "800", color: s.scoreColor }}>
+                {s.total}<span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>/100</span>
+              </div>
+            </div>
+
+            <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Accessibility Features</span>
+                  <span style={{ fontSize: "13px", fontWeight: "700", color: "#111827" }}>{s.featuresScore}/50</span>
+                </div>
+                <ScoreBar value={s.featuresScore} max={50} color="#2563eb" />
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "8px" }}>
+                  {s.features.map((f) => (
+                    <div key={f.key} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 8px", borderRadius: "6px", backgroundColor: f.present ? "#f0fdf4" : "#f9fafb" }}>
+                      <span style={{ fontSize: "14px", width: "20px", textAlign: "center" }}>{f.icon}</span>
+                      <span style={{ flex: 1, fontSize: "13px", color: "#374151" }}>{f.label}</span>
+                      <span style={{ fontWeight: "700", fontSize: "13px", color: f.present ? "#16a34a" : "#d1d5db" }}>
+                        {f.present ? `+${f.weight}` : "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Your Preference Match</span>
+                  <span style={{ fontSize: "13px", fontWeight: "700", color: "#111827" }}>{s.preferenceScore}/30</span>
+                </div>
+                <ScoreBar value={s.preferenceScore} max={30} color="#7c3aed" />
+                <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>
+                  {s.matchPercent !== null
+                    ? `${s.matchedCount} of ${s.totalPrefs} preferred features present (${s.matchPercent}% match)`
+                    : "Set preferences in your profile to get a personalized score."}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Data Confidence</span>
+                  <span style={{ fontSize: "13px", fontWeight: "700", color: s.confidenceColor }}>{s.confidenceLabel} ({s.confidenceRaw}/20)</span>
+                </div>
+                <ScoreBar value={s.confidenceRaw} max={20} color={s.confidenceColor} />
+                <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>
+                  {s.confidencePct}% of accessibility fields have reported data
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+>>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
 function FeatureCard({ title, icon, children }) {
   return (
     <div
@@ -55,6 +415,13 @@ export default function BusinessDetailPage() {
   const [error, setError]             = useState(null);
   const [bookmarked, setBookmarked]   = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
+<<<<<<< HEAD
+=======
+  const [userPrefs,   setUserPrefs]   = useState([]);
+  const [allPhotos,   setAllPhotos]   = useState([]);
+  // modal: null | { category: string, index: number }
+  const [modal,       setModal]       = useState(null);
+>>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
 
   useEffect(() => {
     getBusiness(id)
@@ -63,6 +430,33 @@ export default function BusinessDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+<<<<<<< HEAD
+=======
+  useEffect(() => {
+    if (!id) return;
+    getBusinessPhotos(id)
+      .then(setAllPhotos)
+      .catch(() => setAllPhotos([]));
+  }, [id]);
+
+  useEffect(() => {
+    getProfile()
+      .then((data) => setUserPrefs(data.featurePreferences || []))
+      .catch(() => {});
+  }, []);
+
+  // Group photos by category — newest-first within each group (API already sorts)
+  const groupedPhotos = useMemo(() => {
+    const groups = {};
+    allPhotos.forEach((photo) => {
+      const cat = photo.category || "Other";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(photo);
+    });
+    return groups;
+  }, [allPhotos]);
+
+>>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
   const handleBookmark = async () => {
     if (bookmarked || bookmarking) return;
     setBookmarking(true);
@@ -84,6 +478,7 @@ export default function BusinessDetailPage() {
     );
   }
 
+<<<<<<< HEAD
   if (error || !business) {
     return (
       <div style={{ padding: "40px", textAlign: "center", color: "#dc2626", fontFamily: "sans-serif" }}>
@@ -92,6 +487,8 @@ export default function BusinessDetailPage() {
     );
   }
 
+=======
+>>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
   return (
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 20px" }}>
@@ -137,6 +534,7 @@ export default function BusinessDetailPage() {
           </p>
         )}
 
+<<<<<<< HEAD
         {/* ── PHOTO GALLERY ──────────────────────────────────────────────────── */}
         {/*
           PhotoGallery fetches from GET /api/businesses/:id/photos,
@@ -145,6 +543,111 @@ export default function BusinessDetailPage() {
         */}
         <div style={{ marginBottom: "28px" }}>
           <PhotoGallery businessId={business.id} />
+=======
+        {/* ----------------------------------------------------------------
+            Photos — category grid
+            One slot per category. Clicking a slot with photos opens modal.
+        ---------------------------------------------------------------- */}
+        <div style={{ marginBottom: "28px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+            <span style={{ fontSize: "16px" }}>🖼</span>
+            <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" }}>Photos</h2>
+            <span
+              style={{
+                backgroundColor: allPhotos.length > 0 ? "#111827" : "#e5e7eb",
+                color:           allPhotos.length > 0 ? "#fff"    : "#6b7280",
+                borderRadius:    "999px",
+                padding:         "1px 8px",
+                fontSize:        "12px",
+                fontWeight:      "600",
+              }}
+            >
+              {allPhotos.length}
+            </span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+            {PHOTO_SLOTS.map((slot) => {
+              const slotPhotos = groupedPhotos[slot.category] || [];
+              const preview    = slotPhotos[0]; // newest (API sorts newest-first)
+
+              return preview ? (
+                // ── Slot with photo ──
+                <div
+                  key={slot.category}
+                  onClick={() => setModal({ category: slot.category, index: 0 })}
+                  style={{
+                    position:     "relative",
+                    cursor:       "pointer",
+                    borderRadius: "10px",
+                    overflow:     "hidden",
+                    aspectRatio:  "4/3",
+                  }}
+                >
+                  <img
+                    src={preview.photoUrl}
+                    alt={slot.label}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+
+                  {/* Bottom gradient overlay with label + count badge */}
+                  <div
+                    style={{
+                      position:   "absolute",
+                      bottom:     0,
+                      left:       0,
+                      right:      0,
+                      padding:    "20px 8px 7px",
+                      background: "linear-gradient(transparent, rgba(0,0,0,0.55))",
+                      display:    "flex",
+                      alignItems: "flex-end",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span style={{ fontSize: "11px", color: "#fff", fontWeight: "600" }}>
+                      {slot.label}
+                    </span>
+                    {slotPhotos.length > 1 && (
+                      <span
+                        style={{
+                          fontSize:        "11px",
+                          fontWeight:      "700",
+                          color:           "#fff",
+                          backgroundColor: "rgba(0,0,0,0.45)",
+                          borderRadius:    "999px",
+                          padding:         "1px 7px",
+                        }}
+                      >
+                        +{slotPhotos.length - 1}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                // ── Empty slot ──
+                <div
+                  key={slot.category}
+                  style={{
+                    aspectRatio:     "4/3",
+                    borderRadius:    "10px",
+                    backgroundColor: "#f3f4f6",
+                    border:          "2px dashed #d1d5db",
+                    display:         "flex",
+                    flexDirection:   "column",
+                    alignItems:      "center",
+                    justifyContent:  "center",
+                    gap:             "6px",
+                    padding:         "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "22px" }}>{slot.icon}</span>
+                  <span style={{ fontSize: "11px", color: "#9ca3af", textAlign: "center", fontWeight: "500" }}>{slot.label}</span>
+                  <span style={{ fontSize: "10px", color: "#d1d5db" }}>No photo yet</span>
+                </div>
+              );
+            })}
+          </div>
+>>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
         </div>
 
         {/* ── FEATURE CARDS ──────────────────────────────────────────────────── */}
@@ -260,6 +763,16 @@ export default function BusinessDetailPage() {
         </div>
 
       </div>
+
+      {/* Photo modal — rendered outside the scrollable content div */}
+      {modal && (
+        <PhotoModal
+          photos={groupedPhotos[modal.category] || []}
+          category={modal.category}
+          initialIndex={modal.index}
+          onClose={() => setModal(null)}
+        />
+      )}
     </div>
   );
 }
