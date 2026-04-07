@@ -1,20 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-<<<<<<< HEAD
-import { getBusiness, addBookmark } from "../services/api";
-import PhotoGallery from "../components/PhotoGallery";
-
-// ---------------------------------------------------------------------------
-// Feature card
-// ---------------------------------------------------------------------------
-
-=======
 import { getBusiness, addBookmark, getProfile, getBusinessPhotos } from "../services/api";
 
-// ---------------------------------------------------------------------------
-// PHOTO_SLOTS — one slot per category, label must match category strings
-// sent by ContributePhotosPage exactly.
-// ---------------------------------------------------------------------------
 const PHOTO_SLOTS = [
   { label: "Entrance",          category: "Entrance",          icon: "🚪" },
   { label: "Bathroom",          category: "Bathroom",          icon: "🚻" },
@@ -24,19 +11,9 @@ const PHOTO_SLOTS = [
   { label: "Other",             category: "Other",             icon: "📷" },
 ];
 
-// ---------------------------------------------------------------------------
-// PhotoModal
-// Opens over the page when a category slot with photos is clicked.
-// Props:
-//   photos       — array of photo objects for this category (newest-first)
-//   category     — display name of the category
-//   initialIndex — which photo to open on
-//   onClose      — called when modal should close
-// ---------------------------------------------------------------------------
 function PhotoModal({ photos, category, initialIndex, onClose }) {
   const [index, setIndex] = useState(initialIndex);
 
-  // Keyboard navigation
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "Escape")     onClose();
@@ -50,27 +27,26 @@ function PhotoModal({ photos, category, initialIndex, onClose }) {
   const photo = photos[index];
   if (!photo) return null;
 
-  const navBtnStyle = {
+  const arrowBase = {
     position:        "absolute",
     top:             "50%",
     transform:       "translateY(-50%)",
     background:      "rgba(255,255,255,0.15)",
     border:          "none",
     color:           "#fff",
-    fontSize:        "28px",
+    fontSize:        "32px",
     cursor:          "pointer",
-    width:           "44px",
-    height:          "44px",
+    width:           "56px",
+    height:          "56px",
     borderRadius:    "50%",
     display:         "flex",
     alignItems:      "center",
     justifyContent:  "center",
-    flexShrink:      0,
+    zIndex:          10,
     transition:      "background 0.15s",
   };
 
   return (
-    // Backdrop — click outside image to close
     <div
       onClick={onClose}
       style={{
@@ -85,7 +61,6 @@ function PhotoModal({ photos, category, initialIndex, onClose }) {
         padding:         "16px",
       }}
     >
-      {/* Close button */}
       <button
         onClick={onClose}
         style={{
@@ -100,60 +75,55 @@ function PhotoModal({ photos, category, initialIndex, onClose }) {
           lineHeight: 1,
           padding:    "4px",
         }}
-      >
-        ✕
-      </button>
+      >✕</button>
 
-      {/* Counter */}
       <div style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "12px", userSelect: "none" }}>
         {category} · {index + 1} / {photos.length}
       </div>
 
-      {/* Image + prev/next row */}
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
+          position:   "relative",
           display:    "flex",
           alignItems: "center",
-          gap:        "12px",
           width:      "100%",
           maxWidth:   "860px",
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* Prev */}
+        {/* Left arrow */}
         <button
           onClick={() => setIndex((i) => Math.max(i - 1, 0))}
-          disabled={index === 0}
-          style={{ ...navBtnStyle, opacity: index === 0 ? 0.2 : 1 }}
-        >
-          ‹
-        </button>
+          style={{
+            ...arrowBase,
+            left:       "8px",
+            visibility: index === 0 ? "hidden" : "visible",
+          }}
+        >‹</button>
 
-        {/* Image */}
         <img
           src={photo.photoUrl}
           alt={photo.caption || category}
           style={{
-            flex:         1,
+            width:        "100%",
             maxHeight:    "70vh",
             objectFit:    "contain",
             borderRadius: "10px",
             display:      "block",
-            minWidth:     0,
           }}
         />
 
-        {/* Next */}
+        {/* Right arrow */}
         <button
           onClick={() => setIndex((i) => Math.min(i + 1, photos.length - 1))}
-          disabled={index === photos.length - 1}
-          style={{ ...navBtnStyle, opacity: index === photos.length - 1 ? 0.2 : 1 }}
-        >
-          ›
-        </button>
+          style={{
+            ...arrowBase,
+            right:      "8px",
+            visibility: index === photos.length - 1 ? "hidden" : "visible",
+          }}
+        >›</button>
       </div>
 
-      {/* Caption */}
       {photo.caption && (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -173,13 +143,7 @@ function PhotoModal({ photos, category, initialIndex, onClose }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// calculatePathableScore
-// Score = featuresScore + preferenceScore + confidenceRaw
-// This is the ONLY place scores are calculated for display.
-// ---------------------------------------------------------------------------
 function calculatePathableScore(business, userPreferences = []) {
-
   const featureChecks = [
     { key: "wheelchair_accessible", label: "Ramps / Wheelchair Access", icon: "♿", weight: 15 },
     { key: "accessible_parking",    label: "Accessible Parking",         icon: "🚗", weight: 10 },
@@ -250,20 +214,10 @@ function calculatePathableScore(business, userPreferences = []) {
   const scoreBorder = total >= 75 ? "#bbf7d0" : total >= 50 ? "#fde68a" : "#fecaca";
 
   return {
-    total,
-    featuresScore,
-    preferenceScore,
-    confidenceRaw,
-    confidenceLabel,
-    confidenceColor,
-    confidencePct: Math.round((filledFields / features.length) * 100),
-    features,
-    matchedCount,
-    totalPrefs,
-    matchPercent,
-    scoreColor,
-    scoreBg,
-    scoreBorder,
+    total, featuresScore, preferenceScore, confidenceRaw, confidenceLabel,
+    confidenceColor, confidencePct: Math.round((filledFields / features.length) * 100),
+    features, matchedCount, totalPrefs, matchPercent,
+    scoreColor, scoreBg, scoreBorder,
   };
 }
 
@@ -290,9 +244,7 @@ function PathableRatingBadge({ business, userPreferences }) {
           Pathable Score
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: s.scoreBg, border: `1.5px solid ${s.scoreBorder}`, borderRadius: "10px", padding: "6px 14px" }}>
-          <span style={{ fontSize: "24px", fontWeight: "800", color: s.scoreColor, lineHeight: 1 }}>
-            {s.total}
-          </span>
+          <span style={{ fontSize: "24px", fontWeight: "800", color: s.scoreColor, lineHeight: 1 }}>{s.total}</span>
           <span style={{ fontSize: "13px", color: "#9ca3af" }}>/100</span>
           <span style={{ fontSize: "11px", color: "#9ca3af" }}>▾</span>
         </div>
@@ -302,7 +254,6 @@ function PathableRatingBadge({ business, userPreferences }) {
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
           <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: "320px", backgroundColor: "#fff", border: "1.5px solid #e5e7eb", borderRadius: "14px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, overflow: "hidden" }}>
-
             <div style={{ padding: "14px 16px", backgroundColor: s.scoreBg, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: "700", fontSize: "14px", color: "#111827" }}>Score Breakdown</div>
@@ -314,7 +265,6 @@ function PathableRatingBadge({ business, userPreferences }) {
             </div>
 
             <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Accessibility Features</span>
@@ -357,7 +307,6 @@ function PathableRatingBadge({ business, userPreferences }) {
                   {s.confidencePct}% of accessibility fields have reported data
                 </div>
               </div>
-
             </div>
           </div>
         </>
@@ -366,19 +315,9 @@ function PathableRatingBadge({ business, userPreferences }) {
   );
 }
 
->>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
 function FeatureCard({ title, icon, children }) {
   return (
-    <div
-      style={{
-        backgroundColor: "#fff",
-        border:          "1px solid #e5e7eb",
-        borderRadius:    "12px",
-        padding:         "20px",
-        flex:            "1 1 calc(50% - 8px)",
-        minWidth:        "240px",
-      }}
-    >
+    <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "20px", flex: "1 1 calc(50% - 8px)", minWidth: "240px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
         <span style={{ fontSize: "18px" }}>{icon}</span>
         <span style={{ fontWeight: "700", fontSize: "15px", color: "#111827" }}>{title}</span>
@@ -394,34 +333,24 @@ function CheckRow({ label, value, note }) {
       <span style={{ fontSize: "14px", color: "#374151" }}>{label}</span>
       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
         {note && <span style={{ fontSize: "12px", color: "#6b7280" }}>{note}</span>}
-        <span style={{ color: value ? "#16a34a" : "#9ca3af", fontSize: "16px" }}>
-          {value ? "✓" : "✗"}
-        </span>
+        <span style={{ color: value ? "#16a34a" : "#9ca3af", fontSize: "16px" }}>{value ? "✓" : "✗"}</span>
       </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// BusinessDetailPage
-// Route: /business/:id
-// ---------------------------------------------------------------------------
-
 export default function BusinessDetailPage() {
-  const { id }       = useParams();
-  const navigate     = useNavigate();
-  const [business, setBusiness]       = useState(null);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState(null);
-  const [bookmarked, setBookmarked]   = useState(false);
+  const { id }   = useParams();
+  const navigate = useNavigate();
+
+  const [business,    setBusiness]    = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [bookmarked,  setBookmarked]  = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
-<<<<<<< HEAD
-=======
   const [userPrefs,   setUserPrefs]   = useState([]);
   const [allPhotos,   setAllPhotos]   = useState([]);
-  // modal: null | { category: string, index: number }
   const [modal,       setModal]       = useState(null);
->>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
 
   useEffect(() => {
     getBusiness(id)
@@ -430,8 +359,6 @@ export default function BusinessDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-<<<<<<< HEAD
-=======
   useEffect(() => {
     if (!id) return;
     getBusinessPhotos(id)
@@ -445,7 +372,6 @@ export default function BusinessDetailPage() {
       .catch(() => {});
   }, []);
 
-  // Group photos by category — newest-first within each group (API already sorts)
   const groupedPhotos = useMemo(() => {
     const groups = {};
     allPhotos.forEach((photo) => {
@@ -456,7 +382,6 @@ export default function BusinessDetailPage() {
     return groups;
   }, [allPhotos]);
 
->>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
   const handleBookmark = async () => {
     if (bookmarked || bookmarking) return;
     setBookmarking(true);
@@ -470,98 +395,40 @@ export default function BusinessDetailPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ padding: "40px", textAlign: "center", color: "#6b7280", fontFamily: "sans-serif" }}>
-        Loading…
-      </div>
-    );
-  }
+  if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "#6b7280", fontFamily: "sans-serif" }}>Loading...</div>;
+  if (error || !business) return <div style={{ padding: "40px", textAlign: "center", color: "#dc2626", fontFamily: "sans-serif" }}>{error || "Business not found."}</div>;
 
-<<<<<<< HEAD
-  if (error || !business) {
-    return (
-      <div style={{ padding: "40px", textAlign: "center", color: "#dc2626", fontFamily: "sans-serif" }}>
-        {error || "Business not found."}
-      </div>
-    );
-  }
-
-=======
->>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
   return (
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 20px" }}>
 
-        {/* Back */}
-        <button
-          onClick={() => navigate("/")}
-          style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: "#2563eb", fontSize: "14px", padding: "0",
-            marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px",
-          }}
-        >
+        <button onClick={() => navigate("/")} style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "14px", padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
           ← Back to Map
         </button>
 
-        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
-          <h1 style={{ margin: 0, fontSize: "28px", fontWeight: "800", color: "#111827" }}>
+          <h1 style={{ margin: 0, fontSize: "28px", fontWeight: "800", color: "#111827", paddingRight: "16px" }}>
             {business.name}
           </h1>
-          {business.community_score != null && (
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "2px" }}>Pathable Score</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <span style={{ color: "#f59e0b", fontSize: "20px" }}>★</span>
-                <span style={{ fontSize: "22px", fontWeight: "700", color: "#111827" }}>
-                  {business.community_score}
-                </span>
-                <span style={{ fontSize: "14px", color: "#6b7280" }}>/5</span>
-              </div>
-            </div>
-          )}
+          <PathableRatingBadge business={business} userPreferences={userPrefs} />
         </div>
 
-        <p style={{ margin: "0 0 10px", fontSize: "14px", color: "#6b7280", display: "flex", alignItems: "center", gap: "4px" }}>
-          📍 {business.address}
-        </p>
+        <p style={{ margin: "0 0 24px", fontSize: "14px", color: "#6b7280" }}>📍 {business.address}</p>
 
         {business.description && (
-          <p style={{ margin: "0 0 28px", fontSize: "15px", color: "#374151", lineHeight: "1.6" }}>
-            {business.description}
-          </p>
+          <p style={{ margin: "0 0 28px", fontSize: "15px", color: "#374151", lineHeight: "1.6" }}>{business.description}</p>
         )}
 
-<<<<<<< HEAD
-        {/* ── PHOTO GALLERY ──────────────────────────────────────────────────── */}
-        {/*
-          PhotoGallery fetches from GET /api/businesses/:id/photos,
-          groups by category, shows one preview per slot, and opens a
-          full modal when clicked. No longer reads business.photos[].
-        */}
-        <div style={{ marginBottom: "28px" }}>
-          <PhotoGallery businessId={business.id} />
-=======
-        {/* ----------------------------------------------------------------
-            Photos — category grid
-            One slot per category. Clicking a slot with photos opens modal.
-        ---------------------------------------------------------------- */}
+        {/* Photos */}
         <div style={{ marginBottom: "28px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
             <span style={{ fontSize: "16px" }}>🖼</span>
             <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" }}>Photos</h2>
-            <span
-              style={{
-                backgroundColor: allPhotos.length > 0 ? "#111827" : "#e5e7eb",
-                color:           allPhotos.length > 0 ? "#fff"    : "#6b7280",
-                borderRadius:    "999px",
-                padding:         "1px 8px",
-                fontSize:        "12px",
-                fontWeight:      "600",
-              }}
-            >
+            <span style={{
+              backgroundColor: allPhotos.length > 0 ? "#111827" : "#e5e7eb",
+              color:           allPhotos.length > 0 ? "#fff"    : "#6b7280",
+              borderRadius: "999px", padding: "1px 8px", fontSize: "12px", fontWeight: "600",
+            }}>
               {allPhotos.length}
             </span>
           </div>
@@ -569,75 +436,40 @@ export default function BusinessDetailPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
             {PHOTO_SLOTS.map((slot) => {
               const slotPhotos = groupedPhotos[slot.category] || [];
-              const preview    = slotPhotos[0]; // newest (API sorts newest-first)
+              const preview    = slotPhotos[0];
 
               return preview ? (
-                // ── Slot with photo ──
                 <div
                   key={slot.category}
                   onClick={() => setModal({ category: slot.category, index: 0 })}
-                  style={{
-                    position:     "relative",
-                    cursor:       "pointer",
-                    borderRadius: "10px",
-                    overflow:     "hidden",
-                    aspectRatio:  "4/3",
-                  }}
+                  style={{ position: "relative", cursor: "pointer", borderRadius: "10px", overflow: "hidden", aspectRatio: "4/3" }}
                 >
                   <img
                     src={preview.photoUrl}
                     alt={slot.label}
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                   />
-
-                  {/* Bottom gradient overlay with label + count badge */}
-                  <div
-                    style={{
-                      position:   "absolute",
-                      bottom:     0,
-                      left:       0,
-                      right:      0,
-                      padding:    "20px 8px 7px",
-                      background: "linear-gradient(transparent, rgba(0,0,0,0.55))",
-                      display:    "flex",
-                      alignItems: "flex-end",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <span style={{ fontSize: "11px", color: "#fff", fontWeight: "600" }}>
-                      {slot.label}
-                    </span>
+                  <div style={{
+                    position: "absolute", bottom: 0, left: 0, right: 0,
+                    padding: "20px 8px 7px",
+                    background: "linear-gradient(transparent, rgba(0,0,0,0.55))",
+                    display: "flex", alignItems: "flex-end", justifyContent: "space-between",
+                  }}>
+                    <span style={{ fontSize: "11px", color: "#fff", fontWeight: "600" }}>{slot.label}</span>
                     {slotPhotos.length > 1 && (
-                      <span
-                        style={{
-                          fontSize:        "11px",
-                          fontWeight:      "700",
-                          color:           "#fff",
-                          backgroundColor: "rgba(0,0,0,0.45)",
-                          borderRadius:    "999px",
-                          padding:         "1px 7px",
-                        }}
-                      >
+                      <span style={{ fontSize: "11px", fontWeight: "700", color: "#fff", backgroundColor: "rgba(0,0,0,0.45)", borderRadius: "999px", padding: "1px 7px" }}>
                         +{slotPhotos.length - 1}
                       </span>
                     )}
                   </div>
                 </div>
               ) : (
-                // ── Empty slot ──
                 <div
                   key={slot.category}
                   style={{
-                    aspectRatio:     "4/3",
-                    borderRadius:    "10px",
-                    backgroundColor: "#f3f4f6",
-                    border:          "2px dashed #d1d5db",
-                    display:         "flex",
-                    flexDirection:   "column",
-                    alignItems:      "center",
-                    justifyContent:  "center",
-                    gap:             "6px",
-                    padding:         "8px",
+                    aspectRatio: "4/3", borderRadius: "10px", backgroundColor: "#f3f4f6",
+                    border: "2px dashed #d1d5db", display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center", gap: "6px", padding: "8px",
                   }}
                 >
                   <span style={{ fontSize: "22px" }}>{slot.icon}</span>
@@ -647,25 +479,13 @@ export default function BusinessDetailPage() {
               );
             })}
           </div>
->>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
         </div>
 
-        {/* ── FEATURE CARDS ──────────────────────────────────────────────────── */}
+        {/* Feature cards */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "28px" }}>
-
           <FeatureCard title="Parking" icon="🚗">
-            <CheckRow
-              label="Accessible Parking"
-              value={business.accessible_parking}
-              note={business.accessible_parking ? "Available" : "Not available"}
-            />
-            {business.space_count != null && (
-              <p style={{ margin: "10px 0 0", fontSize: "13px", color: "#6b7280" }}>
-                {business.space_count} accessible spaces near entrance
-              </p>
-            )}
+            <CheckRow label="Accessible Parking" value={business.accessible_parking} note={business.accessible_parking ? "Available" : "Not available"} />
           </FeatureCard>
-
           <FeatureCard title="Door Width" icon="🚪">
             {business.entrance_width_rating ? (
               <>
@@ -676,7 +496,7 @@ export default function BusinessDetailPage() {
                   {business.entrance_width_rating === "wide"
                     ? "Fully accessible (wide entry)"
                     : business.entrance_width_rating === "standard"
-                    ? "Accessible (standard 36\" minimum)"
+                    ? 'Accessible (standard 36" minimum)'
                     : "May be difficult for some mobility aids"}
                 </p>
               </>
@@ -684,87 +504,42 @@ export default function BusinessDetailPage() {
               <p style={{ margin: 0, fontSize: "13px", color: "#9ca3af" }}>Not reported</p>
             )}
           </FeatureCard>
-
           <FeatureCard title="Restrooms" icon="♿">
-            <CheckRow
-              label="Accessible Restrooms"
-              value={business.accessible_restrooms}
-              note={business.accessible_restrooms ? "Accessible" : "Not confirmed"}
-            />
+            <CheckRow label="Accessible Restrooms" value={business.accessible_restrooms} note={business.accessible_restrooms ? "Accessible" : "Not confirmed"} />
           </FeatureCard>
-
           <FeatureCard title="Building" icon="🏢">
-            {business.floors != null && (
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f3f4f6" }}>
-                <span style={{ fontSize: "14px", color: "#374151" }}>Floors</span>
-                <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{business.floors}</span>
-              </div>
-            )}
             <CheckRow label="Elevator"        value={business.elevator} />
             <CheckRow label="Ramps"           value={business.wheelchair_accessible} />
             <CheckRow label="Automatic Doors" value={business.auto_doors} />
           </FeatureCard>
-
         </div>
 
-        {/* ── ACTION BAR ─────────────────────────────────────────────────────── */}
+        {/* Action bar */}
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <button
             onClick={handleBookmark}
             disabled={bookmarked || bookmarking}
             style={{
-              flex:            1,
-              padding:         "14px",
+              flex: 1, padding: "14px",
               backgroundColor: bookmarked ? "#16a34a" : "#111827",
-              color:           "#fff",
-              border:          "none",
-              borderRadius:    "10px",
-              fontSize:        "15px",
-              fontWeight:      "600",
-              cursor:          bookmarked || bookmarking ? "default" : "pointer",
-              opacity:         bookmarking ? 0.7 : 1,
-              transition:      "background-color 0.2s",
+              color: "#fff", border: "none", borderRadius: "10px",
+              fontSize: "15px", fontWeight: "600",
+              cursor: bookmarked || bookmarking ? "default" : "pointer",
+              opacity: bookmarking ? 0.7 : 1, transition: "background-color 0.2s",
             }}
           >
-            {bookmarked ? "✓ Bookmarked" : bookmarking ? "Saving…" : "Add to Bookmarks"}
+            {bookmarked ? "✓ Bookmarked" : bookmarking ? "Saving..." : "Add to Bookmarks"}
           </button>
           <button
-            onClick={() => navigate(`/contribute/photos?businessId=${business.id}`)}
-            style={{
-              padding:         "14px 20px",
-              backgroundColor: "#fff",
-              color:           "#111827",
-              border:          "1px solid #d1d5db",
-              borderRadius:    "10px",
-              fontSize:        "15px",
-              fontWeight:      "500",
-              cursor:          "pointer",
-              whiteSpace:      "nowrap",
-            }}
+            onClick={() => console.log("Report Issue — auth required")}
+            style={{ padding: "14px 20px", backgroundColor: "#fff", color: "#111827", border: "1px solid #d1d5db", borderRadius: "10px", fontSize: "15px", fontWeight: "500", cursor: "pointer", whiteSpace: "nowrap" }}
           >
-            📷 Add Photos
-          </button>
-          <button
-            onClick={() => console.log("Report Issue clicked — auth required")}
-            style={{
-              padding:         "14px 20px",
-              backgroundColor: "#fff",
-              color:           "#111827",
-              border:          "1px solid #d1d5db",
-              borderRadius:    "10px",
-              fontSize:        "15px",
-              fontWeight:      "500",
-              cursor:          "pointer",
-              whiteSpace:      "nowrap",
-            }}
-          >
-            Report Issue
+            Report Issue / Update Info
           </button>
         </div>
 
       </div>
 
-      {/* Photo modal — rendered outside the scrollable content div */}
       {modal && (
         <PhotoModal
           photos={groupedPhotos[modal.category] || []}

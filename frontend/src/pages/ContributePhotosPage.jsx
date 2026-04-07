@@ -17,10 +17,6 @@ const CATEGORY_SLUG = {
 // ---------------------------------------------------------------------------
 // ContributePhotosPage
 // Route: /contribute/photos (protected)
-<<<<<<< HEAD
-// Uploads to: business-photos/{businessId}/{category}/{filename}
-// Saves category in Firestore contribution metadata via submitPhoto()
-=======
 //
 // Upload flow:
 //   1. User picks file via drag-drop or file picker
@@ -28,7 +24,6 @@ const CATEGORY_SLUG = {
 //   3. On submit → upload to Firebase Storage under category subfolder
 //   4. Get download URL → send to FastAPI backend
 //   5. Backend writes to contributions (moderation) + photos subcollection (display)
->>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
 // ---------------------------------------------------------------------------
 
 export default function ContributePhotosPage() {
@@ -76,21 +71,12 @@ export default function ContributePhotosPage() {
     setUploadPct(0);
 
     try {
-<<<<<<< HEAD
-      // 1. Upload to Firebase Storage at the category-namespaced path
-      const storage  = getStorage();
-      const ext      = file.name.split(".").pop();
-      const filename = `${Date.now()}.${ext}`;
-      const path     = `business-photos/${businessId}/${category}/${filename}`;
-      const storageRef = ref(storage, path);
-=======
       // Step 1 — Upload file to Firebase Storage under category subfolder
       const ext          = file.name.split(".").pop();
       const categorySlug = CATEGORY_SLUG[category] || "other";
       const storagePath  = `business-photos/${businessId}/${categorySlug}/${generateId()}.${ext}`;
       const storageRef   = ref(storage, storagePath);
       const uploadTask   = uploadBytesResumable(storageRef, file);
->>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
 
       await new Promise((resolve, reject) => {
         const task = uploadBytesResumable(storageRef, file);
@@ -153,11 +139,7 @@ export default function ContributePhotosPage() {
 
         {success && (
           <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "14px", color: "#15803d" }}>
-<<<<<<< HEAD
-            ✓ Photo submitted for review. Thank you for contributing!
-=======
             ✓ Photo uploaded and is now visible on the business page.
->>>>>>> a21d7748e3409b7e9a81c0a76b067f34c9aba08d
           </div>
         )}
 

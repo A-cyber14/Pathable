@@ -2,13 +2,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getProfile, updateProfile } from "../services/api";
 
-// ---------------------------------------------------------------------------
-// ProfilePage
-// Route: /profile (protected)
-// Matches Images 4 & 5 — contribution stats placeholder + disability type
-// dropdown + feature preferences checkboxes
-// ---------------------------------------------------------------------------
-
 const DISABILITY_OPTIONS = [
   { value: "",               label: "Select disability type..." },
   { value: "Mobility",       label: "Mobility"       },
@@ -19,23 +12,22 @@ const DISABILITY_OPTIONS = [
 ];
 
 const FEATURE_OPTIONS = [
-  { value: "accessible_parking",  label: "Accessible Parking",  desc: "Designated parking spaces close to entrance" },
-  { value: "wide_entrances",      label: "Wide Entrances",      desc: "Doors wide enough for wheelchair access" },
-  { value: "elevators",           label: "Elevators",           desc: "Accessible elevators for multi-floor buildings" },
-  { value: "accessible_restrooms",label: "Accessible Restrooms",desc: "Wheelchair-accessible restroom facilities" },
-  { value: "automatic_doors",     label: "Automatic Doors",     desc: "Hands-free entry and exit" },
+  { value: "accessible_parking",   label: "Accessible Parking",   desc: "Designated parking spaces close to entrance" },
+  { value: "wide_entrances",       label: "Wide Entrances",       desc: "Doors wide enough for wheelchair access" },
+  { value: "elevators",            label: "Elevators",            desc: "Accessible elevators for multi-floor buildings" },
+  { value: "accessible_restrooms", label: "Accessible Restrooms", desc: "Wheelchair-accessible restroom facilities" },
+  { value: "automatic_doors",      label: "Automatic Doors",      desc: "Hands-free entry and exit" },
 ];
 
 export default function ProfilePage() {
   const { currentUser } = useAuth();
   const [disabilityType,     setDisabilityType]     = useState("");
   const [featurePreferences, setFeaturePreferences] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [saving,  setSaving]    = useState(false);
-  const [saved,   setSaved]     = useState(false);
-  const [error,   setError]     = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [error,   setError]   = useState(null);
 
-  // Load profile on mount
   useEffect(() => {
     getProfile()
       .then((data) => {
@@ -79,7 +71,6 @@ export default function ProfilePage() {
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: "32px 24px" }}>
       <div style={{ maxWidth: "700px", margin: "0 auto" }}>
 
-        {/* Header — Image 4 */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
           <span style={{ fontSize: "22px" }}>👤</span>
           <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#111827", margin: 0 }}>
@@ -90,7 +81,6 @@ export default function ProfilePage() {
           Customize your experience based on your accessibility needs
         </p>
 
-        {/* Contribution stats card — placeholder per PRD (Image 4) */}
         <div style={{ ...cardStyle, backgroundColor: "#f8faff", borderColor: "#c7d7f8" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
@@ -106,8 +96,6 @@ export default function ProfilePage() {
               <span>🏅</span> Level 1
             </div>
           </div>
-
-          {/* Stats row */}
           <div style={{ display: "flex", gap: "24px" }}>
             {[
               { icon: "📷", count: 0, label: "Photos Uploaded"    },
@@ -126,7 +114,6 @@ export default function ProfilePage() {
 
         {!loading && (
           <>
-            {/* Disability Type — Image 5 */}
             <div style={cardStyle}>
               <h2 style={{ fontSize: "15px", fontWeight: "700", color: "#111827", margin: "0 0 4px" }}>
                 Physical Disability Type
@@ -138,15 +125,15 @@ export default function ProfilePage() {
                 value={disabilityType}
                 onChange={(e) => { setDisabilityType(e.target.value); setSaved(false); }}
                 style={{
-                  width:        "100%",
-                  padding:      "10px 12px",
-                  fontSize:     "14px",
-                  border:       "1.5px solid #d1d5db",
-                  borderRadius: "8px",
-                  outline:      "none",
-                  color:        disabilityType ? "#111827" : "#9ca3af",
+                  width:           "100%",
+                  padding:         "10px 12px",
+                  fontSize:        "14px",
+                  border:          "1.5px solid #d1d5db",
+                  borderRadius:    "8px",
+                  outline:         "none",
+                  color:           disabilityType ? "#111827" : "#9ca3af",
                   backgroundColor: "#f9fafb",
-                  cursor:       "pointer",
+                  cursor:          "pointer",
                 }}
               >
                 {DISABILITY_OPTIONS.map(({ value, label }) => (
@@ -155,7 +142,6 @@ export default function ProfilePage() {
               </select>
             </div>
 
-            {/* Feature Preferences — Image 5 */}
             <div style={cardStyle}>
               <h2 style={{ fontSize: "15px", fontWeight: "700", color: "#111827", margin: "0 0 4px" }}>
                 Feature Preferences
@@ -164,41 +150,40 @@ export default function ProfilePage() {
                 Select features that are most important to you. These will be highlighted when searching for locations.
               </p>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 {FEATURE_OPTIONS.map(({ value, label, desc }) => (
-                  <div
+                  <label
                     key={value}
-                    onClick={() => togglePreference(value)}
+                    htmlFor={`pref-${value}`}
                     style={{
-                      display:         "flex",
-                      alignItems:      "center",
-                      gap:             "14px",
-                      padding:         "12px 0",
-                      borderBottom:    "1px solid #f3f4f6",
-                      cursor:          "pointer",
+                      display:      "flex",
+                      alignItems:   "center",
+                      gap:          "14px",
+                      padding:      "12px 8px",
+                      borderBottom: "1px solid #f3f4f6",
+                      cursor:       "pointer",
                     }}
                   >
                     <input
                       type="checkbox"
+                      id={`pref-${value}`}
                       checked={featurePreferences.includes(value)}
                       onChange={() => togglePreference(value)}
-                      style={{ width: "16px", height: "16px", cursor: "pointer", flexShrink: 0 }}
+                      style={{ width: "18px", height: "18px", cursor: "pointer", flexShrink: 0 }}
                     />
                     <div>
                       <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{label}</div>
                       <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>{desc}</div>
                     </div>
-                  </div>
+                  </label>
                 ))}
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
             )}
 
-            {/* Save button */}
             <button
               onClick={handleSave}
               disabled={saving}
@@ -225,4 +210,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
