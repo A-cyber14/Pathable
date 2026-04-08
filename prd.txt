@@ -1,0 +1,624 @@
+# Pathable — Product Requirements Document
+**Version:** 1.4
+**Status:** Active — MVP Build
+**Last Updated:** April 2026
+**MVP Geography:** Pinellas County, Florida (with Google Places coverage everywhere)
+
+**Working Approach:** Small, bite-sized pieces. One file or one feature at a time. No code is written until the previous piece is confirmed working and correct.
+
+---
+
+## 1. Overview
+
+Pathable is a web application that helps physically disabled individuals discover, evaluate, and share accessibility information about real-world locations. Users can search for businesses (any place returned by Google Places), view detailed accessibility features for verified ones, browse and upload photos, bookmark businesses, and customize their experience based on their personal mobility needs.
+
+**Verified vs. Unverified Businesses**
+
+Search returns two kinds of results, side by side:
+- **Verified (Pathable) businesses** — locations stored in our Firestore `businesses` collection. They show a Pathable badge (★), have an accessibility score, photos, and structured feature data.
+- **Unverified businesses** — any other place returned by Google Places. These appear in search/map results so users always find what they're looking for, but have no Pathable score, no photos, and no feature data until someone contributes them.
+
+**MVP Scope — Pinellas County, Florida**
+
+The v1 launch is geographically scoped to Pinellas County for the verified-businesses dataset. The go-to-market strategy has two tracks running in parallel with the build:
+
+- **Supply (location data):** Partner with 10 local Pinellas County businesses to build verified, hand-curated accessibility profiles before launch. These become the seed dataset and give the app immediate real utility on day one.
+- **Demand (users):** Acquire initial users through geographically targeted Meta ads focused on Pinellas County, and through partnerships with local disability organizations — specifically the **Disability Achievement Center in Largo, FL**.
+
+The map default view, search bias, and nearby query radius are all centered on Pinellas County at launch. The 10 partner business profiles must be fully complete (photos, all feature fields populated) before the app goes live.
+
+---
+
+## 2. Goals & Success Criteria
+
+**Product (technical):**
+- Users can search for and discover businesses by name or location (verified + Google Places)
+- Users can view structured accessibility data for any verified business
+- Logged-in users can contribute photos and feature data
+- Users can bookmark businesses for quick return access
+- Users can set a personal accessibility profile that influences their Pathable Score
+- All data flows through FastAPI — the React frontend never reads/writes Firestore directly (Firebase Storage uploads from the client are the one exception)
+
+**MVP Launch Criteria:**
+- 10 verified Pinellas County business profiles fully populated in Firestore (all feature fields, minimum 3 photos each)
+- Map default view centered on Pinellas County (`lat: 27.9072, lng: -82.7169`, zoom level 11)
+- Google Places search bias set to Pinellas County (center + 25-mile radius)
+- App is publicly accessible via a deployed URL (currently on Vercel) before outreach begins
+- Reviews section live (see §17 — MVP Remaining Work)
+- Video upload supported alongside photos (see §17)
+
+---
+
+## 3. Tech Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend | React.js (Vite) | UI, routing, state management |
+| Backend | Python FastAPI | API endpoints, business logic, Firebase Admin SDK, Google Places proxying |
+| Database | Firebase Firestore | Structured business and user data |
+| File Storage | Firebase Storage | Photo (and soon video) uploads |
+| Auth | Firebase Auth | Google Sign-In — tokens validated server-side by FastAPI |
+| Maps | Google Maps JavaScript API | Interactive map rendering on the frontend |
+| Maps Data | Google Places API | Unified search results (proxied through FastAPI) |
+| Hosting | Vercel (frontend) + container host (backend) | Public deploy |
+
+---
+
+## 4. Architecture Overview
+
+```
+React Frontend
+     │
+     │  HTTP (REST + Firebase ID token in Authorization header)
+     ▼
+FastAPI Backend
+     ├── Validates Firebase Auth JWT on every protected endpoint
+     ├── Google Places API calls (server-side, API key never exposed to client)
+     ├── Firebase Admin SDK → Firestore (read/write business data, profiles, contributions)
+     └── Firebase Admin SDK → Firebase Storage (writes triggered by moderation lifecycle)
+```
+
+**Key Rule:** The React frontend holds a Firebase Auth token (obtained after Google login) and sends it as a Bearer token on every protected API call. FastAPI verifies this token using the Firebase Admin SDK. The frontend never reads/writes Firestore directly.
+
+**Exception — photo uploads:** For performance, the contribute-photo flow uploads the file directly from the browser to Firebase Storage, then POSTs the resulting download URL + metadata to the backend, which writes both a `contributions` audit record and a `businesses/{id}/photos` subcollection entry.
+
+---
+
+## 5. Authentication
+
+### 5.1 Supported Methods
+- Google Sign-In (OAuth via Firebase Auth)
+
+### 5.2 Flow
+1. User signs in via Firebase Auth on the frontend (Firebase client SDK used for auth only)
+2. Frontend receives a Firebase ID token
+3. All subsequent protected API calls include `Authorization: Bearer <id_token>` header
+4. FastAPI verifies the token via `firebase_admin.auth.verify_id_token()`
+5. Browsing (map, search, business detail, unverified business detail) is available to unauthenticated users
+6. Bookmarks, contributions, and profile require authentication
+
+### 5.3 Guest Access
+- Unauthenticated users can browse, search, and view business details
+- A prompt to sign in is shown when they attempt to bookmark or contribute
+
+---
+
+## 6. Screens & Features
+
+### 6.1 Home / Map View
+
+**Route:** `/`
+
+**Description:** The main entry point. Shows an interactive map with verified-business pins alongside a list of top-rated businesses.
+
+**Components:**
+- `SearchBar` at top: unified search (debounced 300ms). Calls `GET /api/businesses/search-unified?q=`. Dropdown distinguishes verified results (🏢 / Pathable badge) from Google Places results (📍).
+- `MapView` — Google Maps embed with red markers for businesses and a blue marker for the selected one. Responds to map-center changes when a result is clicked.
+- Right-side list: top-rated verified businesses (`getTopRated()` → top 10 by accessibility score), rendered as `BusinessCard` items.
+- Clicking a verified result navigates to `/business/:id`. Clicking an unverified Google Places result navigates to `/place/:placeId`.
+
+**API Calls:**
+- `GET /api/businesses/top-rated` — top 10 verified businesses
+- `GET /api/businesses/search-unified?q=` — combined verified + Places search (capped at ~3 total)
+
+---
+
+### 6.2 Business Detail Page (verified)
+
+**Route:** `/business/:id`
+
+**Description:** Full detail page for a verified business pulled from Firestore.
+
+**Components:**
+- Back link to map
+- Business name, address, description
+- **Pathable Score** badge (0–100) — opens a modal breakdown explaining how the score is computed across features, user-preference match, and confidence
+- **Photos section:** category-based photo gallery with up to 6 categories. Subcollection `businesses/{id}/photos` is the source of truth for display.
+- **Feature cards:**
+  - **Parking:** accessible parking Y/N
+  - **Door / Entrance Width:** narrow / standard / wide
+  - **Restrooms:** accessible restrooms Y/N
+  - **Building:** elevator Y/N, automatic doors Y/N, wheelchair accessible Y/N
+- **Reviews section:** Approved reviews for this business, newest-first. Each review shows `reviewerName` (resolved from `users/{uid}.displayName` at read time — "Anonymous" if no uid, "Unknown user" if user doc missing), date, accessibility tags, and free-text comment if present. Empty state shown when no approved reviews exist.
+- **Action bar:**
+  - Bookmark toggle (auth required)
+  - Contribute photos / features shortcuts (auth required)
+
+**API Calls:**
+- `GET /api/businesses/:id` — full business detail (computes accessibility score at read time)
+- `GET /api/businesses/:id/photos` — photos subcollection
+- `GET /api/businesses/:id/reviews` — approved reviews with resolved reviewer names
+- `POST /api/businesses/:id/bookmark` / `DELETE /api/businesses/:id/bookmark`
+- `GET /api/users/me/profile` — to compute personalized Pathable Score
+- `POST /api/businesses/:id/report` — submit report (auth)
+
+---
+
+### 6.3 Unverified Business Page (Google Places)
+
+**Route:** `/place/:placeId`
+
+**Description:** Detail page for a Google Places result that is **not** in our verified businesses collection. Reachable from the unified search dropdown.
+
+**Components:**
+- Yellow warning banner: "Not yet verified in Pathable"
+- Place name, address, coordinates (passed via React Router state from the search dropdown)
+- N/A Pathable Score, empty photo slots, "Not reported" feature cards
+- Blue CTA: "Know this location? → Contribute" linking to `/contribute`
+
+**API Calls:** None — the page renders from router state. (Future: hydrate via a backend Place Details proxy if needed.)
+
+---
+
+### 6.4 Bookmarks
+
+**Route:** `/bookmarks`
+
+**Auth Required:** Yes (`ProtectedRoute`)
+
+**Description:** Grid of the user's saved verified businesses.
+
+**Components:**
+- Page heading: "Your Bookmarks"
+- 2-column grid of business cards (name, address, tags, "View Details" button, remove-bookmark button)
+
+**API Calls:**
+- `GET /api/users/me/bookmarks` — returns enriched business objects
+- `DELETE /api/businesses/:id/bookmark` — remove from bookmarks
+
+---
+
+### 6.5 Contribute
+
+**Routes:**
+- `/contribute` — hub page with two cards
+- `/contribute/photos` — photo submission
+- `/contribute/features` — features submission
+
+**Auth Required:** Yes
+
+**Description:** Hub for submitting accessibility data. Each card on the hub links to its dedicated page.
+
+**Photos page (`/contribute/photos`):**
+1. User picks a business and a photo category
+2. File is validated (type: jpg/png/webp; size: ≤10MB) and uploaded **directly from the browser** to Firebase Storage at `business-photos/{businessId}/{categorySlug}/{uniqueId}.{ext}`
+3. The download URL is POSTed to `POST /api/businesses/:id/photos` along with caption + category
+4. Backend writes a `contributions` doc (audit) **and** appends to the `businesses/{id}/photos` subcollection (immediate display)
+
+**Features page (`/contribute/features`):**
+- Form fields: wheelchair accessible, accessible parking, entrance width (narrow/standard/wide), accessible restrooms, notes
+- POSTs to `POST /api/businesses/:id/features`
+
+**API Calls:**
+- `POST /api/businesses/:id/photos`
+- `POST /api/businesses/:id/features`
+
+---
+
+### 6.6 Profile & Settings
+
+**Route:** `/profile`
+
+**Auth Required:** Yes
+
+**Description:** User's personal accessibility profile and (placeholder) contribution stats.
+
+**Sections:**
+
+**Contribution Stats Card:**
+- `reviewCount` — approved reviews submitted by this user
+- `contributionCount` — approved contributions (photos + features) submitted by this user
+- `totalActivity` — sum of the above
+- These are computed live from Firestore on every `GET /api/users/me/profile` call (two indexed equality queries — no caching)
+
+**Disability Type:**
+- Dropdown options: Mobility, Vision, Hearing, Neurodivergent, Other
+
+**Feature Preferences:**
+- Checkbox list (selected preferences influence the personalized Pathable Score on detail pages):
+  - Accessible Parking (`accessible_parking`)
+  - Wide Entrances (`wide_entrances`)
+  - Elevators (`elevators`)
+  - Accessible Restrooms (`accessible_restrooms`)
+  - Automatic Doors (`automatic_doors`)
+
+**API Calls:**
+- `GET /api/users/me/profile`
+- `PUT /api/users/me/profile`
+
+---
+
+## 7. Data Models
+
+### 7.1 Firestore Collections
+
+#### `businesses/{businessId}`
+The Business document is flat (not nested) in the current implementation. The accessibility score is computed at read time, not stored.
+
+```
+{
+  id: string,
+  name: string,
+  address: string,
+  latitude: float,
+  longitude: float,
+  wheelchair_accessible: bool,
+  accessible_parking: bool,
+  entrance_width_rating: "narrow" | "standard" | "wide" | null,
+  accessible_restrooms: bool | null,
+  elevator: bool | null,
+  auto_doors: bool | null,
+  community_score: float | null,        // average of approved review scores
+  photos: string[],                     // legacy / unused — see subcollection below
+  google_place_id: string | null,
+  createdAt: timestamp,
+  updatedAt: timestamp
+}
+```
+
+#### `businesses/{businessId}/photos` (subcollection)
+```
+{
+  photoUrl: string,                     // Firebase Storage download URL
+  caption: string | null,
+  category: string,                     // e.g. "entrance", "parking", "restroom"
+  submittedBy: string,                  // userId
+  createdAt: timestamp
+}
+```
+
+#### `users/{userId}`
+```
+{
+  uid: string,
+  email: string,
+  displayName: string,
+  disabilityType: string | null,        // "Mobility" | "Vision" | "Hearing" | "Neurodivergent" | "Other"
+  featurePreferences: string[],         // e.g. ["accessible_parking", "elevators"]
+  bookmarks: string[],                  // array of businessIds
+  createdAt: timestamp
+}
+```
+
+#### `contributions/{contributionId}`
+The contributions collection stores two contribution types. Fields differ by type but the base fields are shared.
+
+**Shared fields (all contributions):**
+```
+{
+  businessId: string,
+  userId:     string,              // Firebase Auth UID — NOTE: field is "userId", not "submittedBy"
+  type:       "photo" | "features",
+  status:     "pending_review" | "approved" | "rejected",
+  createdAt:  string,              // ISO-8601 UTC
+}
+```
+
+**Photo contributions (type = "photo") — additional fields:**
+```
+{
+  photoUrl:   string,              // Firebase Storage download URL
+  category:   string,              // e.g. "Entrance", "Bathroom"
+  caption:    string | null,
+  uploadedBy: string,              // uid (redundant with userId; kept for legacy)
+  verified:   bool,
+}
+```
+
+**Feature contributions (type = "features") — additional fields:**
+```
+{
+  wheelchairAccessible: bool | null,
+  accessibleParking:    bool | null,
+  doorWidth:            int | null,
+  accessibleRestroom:   bool | null,
+  notes:                string | null,
+}
+```
+
+**Fields added on admin approval:**
+```
+{
+  approvedAt: string,              // ISO-8601 UTC
+  approvedBy: string,              // admin uid
+}
+```
+
+> **Field name note:** The `userId` field in contributions is intentionally different from `submittedBy` used in reviews. `get_contributor_uid(doc)` in `services/firebase.py` normalizes both at read time without renaming either field.
+
+#### `reviews/{reviewId}`
+```
+{
+  business_id:           string,
+  submittedBy:           string,   // Firebase Auth UID — required
+  wheelchair_accessible: bool,
+  accessible_parking:    bool,
+  entrance_width_rating: "narrow" | "standard" | "wide",
+  comment:               string | null,
+  status:                "approved",  // always approved on write; only valid states are "approved" and (soft) removed via DELETE
+  submitted_at:          string,   // ISO-8601 UTC — NOTE: field is "submitted_at", not "createdAt"
+}
+```
+
+> Pre-existing reviews written before auth was enforced will not have a `submittedBy` field. These display as "Anonymous" in the reviews UI and are excluded from user activity counts.
+
+#### `reports/{reportId}`
+Issue/update reports submitted from the business detail page.
+
+> **Bookmarks** are stored as an array on the user document, not in a separate collection.
+
+---
+
+## 8. Geospatial Strategy
+
+Verified businesses are filtered in-memory on a small dataset (10–50 records at launch). A geohash index is **not** currently used; if/when the verified set grows, the planned upgrade is geohash precision-9 indexing on each business document, with FastAPI doing geohash range queries + Haversine post-filter. Post-v1, this can be migrated to PostGIS without changing the API contract.
+
+For unverified results, geographic filtering is delegated to the Google Places API (Pinellas center + 25-mile radius bias).
+
+---
+
+## 9. API Endpoints
+
+All endpoints are prefixed `/api`. Protected endpoints require `Authorization: Bearer <firebase_id_token>`.
+
+### Businesses (`/api/businesses`)
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/businesses` | No | List all verified businesses (summaries) |
+| GET | `/api/businesses/top-rated` | No | Top 10 verified businesses by accessibility score |
+| GET | `/api/businesses/search?q=` | No | DB-only name search (legacy) |
+| GET | `/api/businesses/search-unified?q=` | No | **Unified search** — verified Firestore results + Google Places fill, deduped by `place_id` |
+| GET | `/api/businesses/:id` | No | Full business detail (score computed at read time) |
+| GET | `/api/businesses/:id/photos` | No | Photos subcollection |
+| POST | `/api/businesses/:id/photos` | Yes | Submit photo (URL + metadata; writes to `contributions` and `photos` subcollection) |
+| POST | `/api/businesses/:id/features` | Yes | Submit feature data (creates contribution) |
+| POST | `/api/businesses/:id/bookmark` | Yes | Add to user bookmarks |
+| DELETE | `/api/businesses/:id/bookmark` | Yes | Remove from user bookmarks |
+| POST | `/api/businesses/:id/report` | Yes | Report issue / request update |
+| POST | `/api/businesses/` | Yes (admin in practice) | Create a verified business |
+
+### Reviews (`/api/reviews`)
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/reviews` | **Yes** | Submit a review — goes live immediately (`status: "approved"`). Stamps `submittedBy: uid` and recalculates `community_score`. No moderation gate. |
+
+### Users (`/api/users`)
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/users/me/profile` | Yes | Profile + preferences + activity counts (`reviewCount`, `contributionCount`, `totalActivity`) |
+| PUT | `/api/users/me/profile` | Yes | Update disability type + feature preferences |
+| GET | `/api/users/me/bookmarks` | Yes | List bookmarked businesses (enriched) |
+
+### Businesses — additional read endpoints
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/businesses/:id/reviews` | No | Approved reviews for a business, newest-first. Each entry includes `reviewerName` resolved from `users/{uid}.displayName` |
+
+### Admin (`/api/admin`)
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| PATCH | `/api/admin/contributions/:id/approve` | Yes + `role == "admin"` | Approves a feature/photo contribution. Sets `status: "approved"`, stamps `approvedAt` and `approvedBy`. |
+| DELETE | `/api/admin/reviews/:id` | Yes + `role == "admin"` | Hard-deletes a harmful review. Recalculates `community_score` after removal. Used only for obscene or bad-faith content — normal reviews are never moderated. |
+
+Admin role is checked via `users/{uid}.role == "admin"` in Firestore — set directly in the database, no endpoint to grant it.
+
+---
+
+## 10. Google Places Integration
+
+- The **Google Maps JavaScript API** is loaded in the React frontend for map rendering only (map tiles, pins, user interaction).
+- All **Places API** calls are proxied through FastAPI (`backend/services/maps.py` using `googlemaps` Python client). The Google API key is never in the frontend bundle.
+- The unified search endpoint (`/api/businesses/search-unified`) merges Firestore matches with Google Places results, suppresses any Place that already has a verified counterpart (matched by `place_id`), and returns both kinds in a single list. Each result carries an `in_db: bool` flag so the frontend can render the Pathable badge only on verified entries.
+
+**MVP Map Defaults — Pinellas County:**
+- Default center: `lat: 27.9072, lng: -82.7169`
+- Default zoom: `11`
+- Google Places search bias: Pinellas center + ~25-mile radius
+
+---
+
+## 11. Pathable Score
+
+Computed at read time (not stored). Implemented in `backend/services/scoring.py` and mirrored on the frontend in `BusinessDetailPage` so that the personalized score can be shown live.
+
+**Score components (max 100):**
+- **Features (0–50)** — additive credit for each accessibility feature present:
+  - wheelchair_accessible: 15
+  - accessible_parking: 10
+  - entrance_width_rating in {"standard", "wide"}: 10
+  - accessible_restrooms: 8
+  - elevator: 4
+  - auto_doors: 3
+- **Preference match (0–30)** — how well the business fits the user's selected feature preferences. When no user context is available (anonymous, or backend with no user), a neutral 15/30 is returned.
+- **Confidence (0–20)** — currently `(filled_feature_fields / 6) * 20`. The function signature already accepts `review_count` and `contribution_count` as optional parameters, but they are not yet factored into the math — see §17.
+
+`calculate_accessibility_score(business, review_count=None, contribution_count=None)` — all three call sites now pass these as explicit keyword arguments so the wiring is visible and ready for when the math expands.
+
+The breakdown is exposed to the user as a modal on the detail page.
+
+---
+
+## 12. Firebase Storage — Photo Handling
+
+1. Frontend (`ContributePhotosPage`) validates type (jpg/png/webp) and size (≤10MB)
+2. Frontend uploads the file directly to Firebase Storage at `business-photos/{businessId}/{categorySlug}/{uniqueId}.{ext}` using the Firebase client SDK
+3. Frontend POSTs `{photoUrl, caption, category}` to `POST /api/businesses/:id/photos`
+4. Backend writes a `contributions` audit record **and** appends to the `businesses/{id}/photos` subcollection (immediate display, no moderation gate yet)
+5. Future: gate display behind moderation approval; until then, photos appear immediately
+
+> Video upload follows the same flow but is not yet implemented — see §17.
+
+---
+
+## 13. Feature Preference Highlighting
+
+When a user has feature preferences set in their profile, the personalized Pathable Score on the detail page reflects them. (Card-level color highlighting on the home list is not currently implemented and is deferred.)
+
+---
+
+## 14. Moderation Flow
+
+**Feature contributions (photos + structured data) — moderated:**
+1. Any logged-in user submits a photo or feature update
+2. A `contribution` document is created with `status: "pending_review"`
+3. Photos surface immediately via the photos subcollection (moderation gate deferred to post-MVP)
+4. Structured features require manual merge into the business document after admin approval
+5. Admin calls `PATCH /api/admin/contributions/:id/approve` — sets `status: "approved"`, stamps `approvedAt` and `approvedBy`
+
+**Reviews — not moderated:**
+1. Any logged-in user submits a review
+2. Review is written as `status: "approved"` and surfaces immediately — no queue, no wait
+3. If a review is reported as obscene or bad-faith, an admin can call `DELETE /api/admin/reviews/:id` to remove it and the `community_score` is recalculated automatically
+4. A report mechanism to notify admins of harmful reviews is still pending (see §17)
+
+Admin role is `users/{uid}.role == "admin"` — set directly in Firestore. No UI to grant it.
+
+---
+
+## 15. Seed Data — 10 Partner Businesses
+
+Before launch, 10 Pinellas County business profiles must be manually verified and seeded into Firestore. Each profile requires:
+
+- All feature fields populated (parking, entrance width, restroom Y/N, elevator Y/N, auto doors Y/N, wheelchair accessible Y/N)
+- Minimum 3 photos (entrance, parking, at least one interior accessibility feature)
+- Description written from an accessibility perspective
+- Coordinates confirmed accurate (not just geocoded from address)
+
+**Implementation:** A single script `backend/scripts/seed_locations.py` contains both the hardcoded `BUSINESSES` list and the Firestore write logic. (The earlier two-file split into `seed_data.py` + `seed_locations.py` was never implemented; if/when contributors need to edit only the data, this can be split out.)
+
+---
+
+## 16. Out of Scope for v1
+
+- Native mobile app
+- Directions / routing between businesses
+- User-to-user messaging or comments
+- Admin web UI (admin actions via direct Firestore access)
+- Offline support / PWA
+- Photo moderation gating (photos appear immediately)
+- Geohash-based geo queries (not needed at launch scale)
+
+---
+
+## 17. MVP Remaining Work
+
+These items are required to call the MVP complete:
+
+1. **Video uploads.** Extend the contribute-photos flow (and storage path/validation) to accept video files alongside images. Update `DragDropZone`, `ContributePhotosPage`, and the photos subcollection schema (add `mediaType: "image" | "video"`).
+
+2. **Reviews — write form.** The backend (`POST /api/reviews`), auth enforcement, immediate publish, and read display are all done. What remains:
+   - Add a review submission form to `BusinessDetailPage` (auth required) that calls `submitReview()` from `api.js`
+   - Add a report button on each review so users can flag harmful content for admin removal (`DELETE /api/admin/reviews/:id` is already built)
+
+3. **Confidence score expansion.** Wire `review_count` and `contribution_count` into the confidence math in `scoring.py`. The function signature already accepts them; all call sites already pass them as keyword args. Steps:
+   - Fetch approved review count for the business before calling `_enrich_score()`
+   - Fetch approved contribution count for the business before calling `_enrich_score()`
+   - Update the confidence formula in `scoring.py` to factor both in
+
+Once these three items ship, the MVP is feature-complete.
+
+---
+
+## 18. Environment Variables
+
+### FastAPI (.env)
+```
+FIREBASE_CREDENTIALS_PATH=./serviceAccountKey.json
+# OR for prod:
+FIREBASE_CREDENTIALS_JSON={...inline service account json...}
+GOOGLE_MAPS_API_KEY=...
+FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+```
+
+### React (.env)
+```
+VITE_GOOGLE_MAPS_API_KEY=...        # Maps JS API only (map rendering)
+VITE_FIREBASE_API_KEY=...           # Firebase Auth + Storage upload
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+> The React app uses the Firebase client SDK for authentication and direct-to-Storage photo uploads. All other data operations go through FastAPI.
+
+---
+
+## 19. Project File Structure
+
+The current structure on disk:
+
+```
+root/
+├── prd.txt
+├── cors.json
+├── run.sh
+├── frontend/
+│   ├── index.html
+│   ├── package.json
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx                       # Route definitions + AuthProvider
+│       ├── firebase.js                   # Firebase client init (auth + storage)
+│       ├── context/
+│       │   └── AuthContext.jsx           # useAuth() hook, Google sign-in
+│       ├── pages/
+│       │   ├── HomePage.jsx              # Map view + top-rated list
+│       │   ├── BusinessDetailPage.jsx    # Verified business detail
+│       │   ├── UnverifiedBusinessPage.jsx# Google Places (not in DB) detail
+│       │   ├── BookmarksPage.jsx
+│       │   ├── ContributePage.jsx        # Hub
+│       │   ├── ContributePhotosPage.jsx
+│       │   ├── ContributeFeaturesPage.jsx
+│       │   ├── ProfilePage.jsx
+│       │   └── LoginPage.jsx
+│       ├── components/
+│       │   ├── Navbar.jsx                # Fixed left nav
+│       │   ├── MapView.jsx               # Google Maps embed
+│       │   ├── SearchBar.jsx             # Unified search w/ dropdown
+│       │   ├── BusinessCard.jsx          # Reusable card
+│       │   ├── PhotoGallery.jsx          # Category tile grid (+ PHOTO_CATEGORIES export)
+│       │   ├── DragDropZone.jsx          # File picker w/ validation
+│       │   ├── ImagePreview.jsx          # Thumbnail + remove
+│       │   └── ProtectedRoute.jsx        # Redirects to /login if unauth'd
+│       └── services/
+│           └── api.js                    # Axios client + token injection
+└── backend/
+    ├── main.py                           # FastAPI app, CORS, router registration
+    ├── requirements.txt
+    ├── Procfile
+    ├── nixpacks.toml
+    ├── routers/
+    │   ├── businesses.py                 # Verified businesses + unified search + photos/features/bookmark/report/reviews read
+    │   ├── reviews.py                    # POST /api/reviews (auth required)
+    │   ├── users.py                      # Profile (w/ activity counts) + bookmarks
+    │   └── admin.py                      # PATCH /api/admin/contributions/:id/approve
+    ├── services/
+    │   ├── firebase.py                   # Admin SDK init + Firestore client + get_contributor_uid()
+    │   ├── maps.py                       # googlemaps Client (Places API)
+    │   └── scoring.py                    # calculate_accessibility_score(business, review_count, contribution_count)
+    ├── models/
+    │   └── business.py                   # Business, BusinessSummary pydantic models
+    └── scripts/
+        └── seed_locations.py             # BUSINESSES list + Firestore write logic
+```

@@ -234,7 +234,19 @@ function calculatePathableScore(business, userPreferences = []) {
     return business[f.key] !== undefined && business[f.key] !== null;
   }).length;
 
-  const confidenceRaw = Math.round((filledFields / features.length) * 20);
+  function volumeScore(count) {
+    const n = count ?? 0;
+    if (n === 0)  return 0;
+    if (n <= 3)   return 1;
+    if (n <= 10)  return 2;
+    if (n <= 25)  return 3;
+    if (n <= 50)  return 4;
+    return 5;
+  }
+
+  const featureConfidence = Math.round((filledFields / features.length) * 10);
+  const reviewConfidence  = volumeScore(business.review_count);
+  const confidenceRaw     = featureConfidence + reviewConfidence;
 
   const confidenceLabel =
     confidenceRaw >= 15 ? "High"   :
