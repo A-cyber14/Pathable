@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel
 from typing import Optional
 from models.business import Business, BusinessSummary
-from services.firebase import db
+from services.firebase import db, get_contributor_uid
 from services.scoring import calculate_accessibility_score
 from services.maps import get_maps_client
 from datetime import datetime, timezone
@@ -39,7 +39,11 @@ def _enrich_score(data: dict) -> dict:
     try:
         b = Business.model_validate(data)
         data = dict(data)
-        data["accessibility_score"] = calculate_accessibility_score(b)
+        data["accessibility_score"] = calculate_accessibility_score(
+            b,
+            review_count=data.get("review_count") or 0,
+            contribution_count=None,
+        )
     except Exception:
         data = dict(data)
         data["accessibility_score"] = None
@@ -187,6 +191,42 @@ def search_unified(q: str = Query(..., description="Unified search query")):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/businesses/{business_id}/review-summary
+# Returns community rating breakdown for the dropdown component.
+# Must be registered BEFORE /{business_id} to avoid route shadowing.
+# ---------------------------------------------------------------------------
+
+@router.get("/{business_id}/review-summary")
+def get_review_summary(business_id: str):
+    if not db.collection(COLLECTION).document(business_id).get().exists:
+        raise HTTPException(status_code=404, detail=f"Business '{business_id}' not found")
+
+    docs = (
+        db.collection("reviews")
+        .where("business_id", "==", business_id)
+        .where("status",      "==", "approved")
+        .stream()
+    )
+
+    breakdown   = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
+    total_rating = 0
+    count        = 0
+
+    for doc in docs:
+        star = doc.to_dict().get("rating")
+        if isinstance(star, int) and 1 <= star <= 5:
+            breakdown[star] += 1
+            total_rating    += star
+            count           += 1
+
+    return {
+        "average_rating": round(total_rating / count, 1) if count > 0 else 0.0,
+        "review_count":   count,
+        "breakdown":      breakdown,
+    }
+
+
+# ---------------------------------------------------------------------------
 # GET /api/businesses/{business_id}
 # ---------------------------------------------------------------------------
 
@@ -323,6 +363,46 @@ def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = H
     })
 
     return {"message": "Photo submitted and is now visible on the business page"}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/businesses/{business_id}/reviews
+# Returns approved reviews for a business, newest-first.
+# Public — no auth required (read-only).
+# ---------------------------------------------------------------------------
+
+@router.get("/{business_id}/reviews")
+def get_business_reviews(business_id: str):
+    if not db.collection(COLLECTION).document(business_id).get().exists:
+        raise HTTPException(status_code=404, detail=f"Business '{business_id}' not found")
+
+    docs = (
+        db.collection("reviews")
+        .where("business_id", "==", business_id)
+        .where("status", "==", "approved")
+        .stream()
+    )
+
+    results = []
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+
+        uid = data.get("submittedBy")
+        if uid:
+            try:
+                user_doc = db.collection("users").document(uid).get()
+                data["reviewerName"] = user_doc.to_dict().get("displayName", "Unknown user") if user_doc.exists else "Unknown user"
+            except Exception:
+                data["reviewerName"] = "Unknown user"
+        else:
+            data["reviewerName"] = "Anonymous"
+
+        results.append(data)
+
+    # Newest-first
+    results.sort(key=lambda x: x.get("submitted_at", ""), reverse=True)
+    return results
 
 
 # ---------------------------------------------------------------------------

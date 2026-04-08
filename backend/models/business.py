@@ -14,8 +14,9 @@ class Business(BaseModel):
     accessible_restrooms:  Optional[bool] = None
     elevator:              Optional[bool] = None
     auto_doors:            Optional[bool] = None
-    community_score:       Optional[float] = None
-    accessibility_score:   Optional[int]   = None  # computed at read time, not stored
+    community_score:       Optional[float] = None   # avg star rating from reviews
+    review_count:          Optional[int]   = None   # number of approved reviews
+    accessibility_score:   Optional[int]   = None   # computed at read time, not stored
     photos: list[str] = []
 
 
@@ -31,5 +32,6 @@ class BusinessSummary(BaseModel):
     accessible_restrooms:  Optional[bool] = None
     elevator:              Optional[bool] = None
     auto_doors:            Optional[bool] = None
-    community_score:       Optional[float] = None
-    accessibility_score:   Optional[int]   = None  # computed at read time, not stored
+    community_score:       Optional[float] = None   # avg star rating from reviews
+    review_count:          Optional[int]   = None   # number of approved reviews
+    accessibility_score:   Optional[int]   = None   # computed at read time, not stored

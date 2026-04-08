@@ -36,3 +36,13 @@ if not firebase_admin._apps:
 # ---------------------------------------------------------------------------
 
 db: firestore.Client = firestore.client()
+
+
+def get_contributor_uid(doc: dict) -> str | None:
+    """
+    Read-time uid normalization across collections with different field names.
+    Checks submittedBy first (reviews), then userId (contributions).
+    Returns None if neither field is present or both are falsy.
+    Documents where the uid field is null or missing are safely ignored.
+    """
+    return doc.get("submittedBy") or doc.get("userId") or None
