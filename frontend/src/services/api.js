@@ -54,6 +54,8 @@ export async function getBusinesses()          { return api.get("/api/businesses
 export async function getTopRated()            { return api.get("/api/businesses/top-rated"); }
 export async function getBusiness(id)          { return api.get(`/api/businesses/${id}`); }
 export async function getBusinessPhotos(id)    { return api.get(`/api/businesses/${id}/photos`); }
+export async function getBusinessReviews(id)    { return api.get(`/api/businesses/${id}/reviews`); }
+export async function getReviewSummary(id)      { return api.get(`/api/businesses/${id}/review-summary`); }
 export async function searchBusinesses(query)  { return query?.trim() ? api.get(`/api/businesses/search?q=${encodeURIComponent(query.trim())}`) : getBusinesses(); }
 export async function searchUnified(query)     { return query?.trim() ? api.get(`/api/businesses/search-unified?q=${encodeURIComponent(query.trim())}`) : []; }
 export async function submitReview(data)       { return api.post("/api/reviews", data); }

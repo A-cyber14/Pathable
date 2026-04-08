@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getBusiness, addBookmark, getProfile, getBusinessPhotos } from "../services/api";
+import CommunityRating from "../components/CommunityRating";
 
 const PHOTO_SLOTS = [
   { label: "Entrance",          category: "Entrance",          icon: "🚪" },
@@ -342,15 +343,14 @@ function CheckRow({ label, value, note }) {
 export default function BusinessDetailPage() {
   const { id }   = useParams();
   const navigate = useNavigate();
-
-  const [business,    setBusiness]    = useState(null);
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState(null);
-  const [bookmarked,  setBookmarked]  = useState(false);
-  const [bookmarking, setBookmarking] = useState(false);
-  const [userPrefs,   setUserPrefs]   = useState([]);
-  const [allPhotos,   setAllPhotos]   = useState([]);
-  const [modal,       setModal]       = useState(null);
+  const [business,         setBusiness]         = useState(null);
+  const [loading,          setLoading]          = useState(true);
+  const [error,            setError]            = useState(null);
+  const [bookmarked,       setBookmarked]       = useState(false);
+  const [bookmarking,      setBookmarking]      = useState(false);
+  const [userPrefs,        setUserPrefs]        = useState([]);
+  const [allPhotos,        setAllPhotos]        = useState([]);
+  const [modal,            setModal]            = useState(null);
 
   useEffect(() => {
     getBusiness(id)
@@ -413,7 +413,9 @@ export default function BusinessDetailPage() {
           <PathableRatingBadge business={business} userPreferences={userPrefs} />
         </div>
 
-        <p style={{ margin: "0 0 24px", fontSize: "14px", color: "#6b7280" }}>📍 {business.address}</p>
+        <p style={{ margin: "0 0 16px", fontSize: "14px", color: "#6b7280" }}>📍 {business.address}</p>
+
+        <CommunityRating businessId={id} />
 
         {business.description && (
           <p style={{ margin: "0 0 28px", fontSize: "15px", color: "#374151", lineHeight: "1.6" }}>{business.description}</p>
