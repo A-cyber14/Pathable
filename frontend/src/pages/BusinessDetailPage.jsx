@@ -4,13 +4,35 @@ import { getBusiness, addBookmark, getProfile, getBusinessPhotos } from "../serv
 import CommunityRating from "../components/CommunityRating";
 
 const PHOTO_SLOTS = [
-  { label: "Entrance",          category: "Entrance",          icon: "🚪" },
-  { label: "Bathroom",          category: "Bathroom",          icon: "🚻" },
-  { label: "Parking Lot",       category: "Parking Lot",       icon: "🚗" },
-  { label: "Interior",          category: "Interior",          icon: "🗺" },
-  { label: "Seating / Service", category: "Seating / Service", icon: "🪑" },
-  { label: "Other",             category: "Other",             icon: "📷" },
+  { label: "Entrance",          key: "entrance", icon: "🚪" },
+  { label: "Bathroom",          key: "bathroom", icon: "🚻" },
+  { label: "Parking Lot",       key: "parking",  icon: "🚗" },
+  { label: "Interior",          key: "interior", icon: "🗺" },
+  { label: "Seating / Service", key: "seating",  icon: "🪑" },
+  { label: "Other",             key: "other",    icon: "📷" },
 ];
+
+// Normalize any category value from Firestore to one of the canonical keys above.
+// Handles both old records ("Entrance") and new records ("entrance").
+const CATEGORY_NORMALIZE = {
+  "entrance":            "entrance",
+  "bathroom":            "bathroom",
+  "parking":             "parking",
+  "parking lot":         "parking",
+  "interior":            "interior",
+  "interior navigation": "interior",
+  "seating":             "seating",
+  "seating / service":   "seating",
+  "other":               "other",
+};
+function normalizeCategory(cat) {
+  if (!cat) return "other";
+  return CATEGORY_NORMALIZE[cat.toLowerCase()] || "other";
+}
+
+function getMediaType(item) {
+  return item.mediaType === "video" ? "video" : "image";
+}
 
 function PhotoModal({ photos, category, initialIndex, onClose }) {
   const [index, setIndex] = useState(initialIndex);
@@ -102,17 +124,31 @@ function PhotoModal({ photos, category, initialIndex, onClose }) {
           }}
         >‹</button>
 
-        <img
-          src={photo.photoUrl}
-          alt={photo.caption || category}
-          style={{
-            width:        "100%",
-            maxHeight:    "70vh",
-            objectFit:    "contain",
-            borderRadius: "10px",
-            display:      "block",
-          }}
-        />
+        {getMediaType(photo) === "video" ? (
+          <video
+            src={photo.photoUrl}
+            controls
+            style={{
+              width:        "100%",
+              maxHeight:    "70vh",
+              borderRadius: "10px",
+              display:      "block",
+              backgroundColor: "#000",
+            }}
+          />
+        ) : (
+          <img
+            src={photo.photoUrl}
+            alt={photo.caption || category}
+            style={{
+              width:        "100%",
+              maxHeight:    "70vh",
+              objectFit:    "contain",
+              borderRadius: "10px",
+              display:      "block",
+            }}
+          />
+        )}
 
         {/* Right arrow */}
         <button
@@ -375,7 +411,7 @@ export default function BusinessDetailPage() {
   const groupedPhotos = useMemo(() => {
     const groups = {};
     allPhotos.forEach((photo) => {
-      const cat = photo.category || "Other";
+      const cat = normalizeCategory(photo.category);
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(photo);
     });
@@ -437,20 +473,31 @@ export default function BusinessDetailPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
             {PHOTO_SLOTS.map((slot) => {
-              const slotPhotos = groupedPhotos[slot.category] || [];
-              const preview    = slotPhotos[0];
+              const slotPhotos   = groupedPhotos[slot.key] || [];
+              const preview      = slotPhotos[0];
+              const previewIsVid = preview && getMediaType(preview) === "video";
 
               return preview ? (
                 <div
-                  key={slot.category}
-                  onClick={() => setModal({ category: slot.category, index: 0 })}
+                  key={slot.key}
+                  onClick={() => setModal({ category: slot.key, index: 0 })}
                   style={{ position: "relative", cursor: "pointer", borderRadius: "10px", overflow: "hidden", aspectRatio: "4/3" }}
                 >
-                  <img
-                    src={preview.photoUrl}
-                    alt={slot.label}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
+                  {previewIsVid ? (
+                    <div style={{
+                      width: "100%", height: "100%", backgroundColor: "#111827",
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px",
+                    }}>
+                      <span style={{ fontSize: "28px" }}>🎬</span>
+                      <span style={{ fontSize: "11px", color: "#9ca3af" }}>Video</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={preview.photoUrl}
+                      alt={slot.label}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    />
+                  )}
                   <div style={{
                     position: "absolute", bottom: 0, left: 0, right: 0,
                     padding: "20px 8px 7px",
@@ -467,7 +514,7 @@ export default function BusinessDetailPage() {
                 </div>
               ) : (
                 <div
-                  key={slot.category}
+                  key={slot.key}
                   style={{
                     aspectRatio: "4/3", borderRadius: "10px", backgroundColor: "#f3f4f6",
                     border: "2px dashed #d1d5db", display: "flex", flexDirection: "column",
@@ -476,7 +523,7 @@ export default function BusinessDetailPage() {
                 >
                   <span style={{ fontSize: "22px" }}>{slot.icon}</span>
                   <span style={{ fontSize: "11px", color: "#9ca3af", textAlign: "center", fontWeight: "500" }}>{slot.label}</span>
-                  <span style={{ fontSize: "10px", color: "#d1d5db" }}>No photo yet</span>
+                  <span style={{ fontSize: "10px", color: "#d1d5db" }}>No media yet</span>
                 </div>
               );
             })}
