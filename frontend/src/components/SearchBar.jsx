@@ -115,11 +115,12 @@ export default function SearchBar({ onSelectBusiness }) {
           display:         "flex",
           alignItems:      "center",
           gap:             "8px",
-          border:          "1px solid #d1d5db",
-          borderRadius:    dropdownVisible ? "8px 8px 0 0" : "8px",
-          padding:         "8px 12px",
+          border:          "1px solid #e5e7eb",
+          borderRadius:    dropdownVisible ? "12px 12px 0 0" : "12px",
+          padding:         "12px 18px",
           backgroundColor: "#fff",
-          transition:      "border-radius 0.1s",
+          boxShadow:       dropdownVisible ? "none" : "0 1px 4px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.03)",
+          transition:      "border-radius 0.1s, box-shadow 0.15s",
         }}
       >
         {/* Magnifier icon */}
@@ -133,13 +134,13 @@ export default function SearchBar({ onSelectBusiness }) {
           value={query}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Search businesses or places..."
+          placeholder="Search places…"
           autoComplete="off"
           style={{
             flex:            1,
             border:          "none",
             outline:         "none",
-            fontSize:        "15px",
+            fontSize:        "16px",
             color:           "#111827",
             backgroundColor: "transparent",
           }}
@@ -176,10 +177,10 @@ export default function SearchBar({ onSelectBusiness }) {
             left:            0,
             right:           0,
             backgroundColor: "#fff",
-            border:          "1px solid #d1d5db",
+            border:          "1px solid #e5e7eb",
             borderTop:       "none",
-            borderRadius:    "0 0 8px 8px",
-            boxShadow:       "0 4px 16px rgba(0,0,0,0.12)",
+            borderRadius:    "0 0 12px 12px",
+            boxShadow:       "0 4px 16px rgba(0,0,0,0.10)",
             zIndex:          1000,
             overflow:        "hidden",
           }}

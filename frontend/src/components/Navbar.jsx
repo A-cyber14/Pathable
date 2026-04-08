@@ -1,54 +1,53 @@
-import { useLocation, useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useState } from "react";
+import { useLocation, Link } from "react-router-dom";
 
 // ---------------------------------------------------------------------------
-// Navbar
-// Matches the left sidebar in all mockups (Images 1–6):
-// - Narrow vertical bar, fixed left
-// - Blue ♿ logo at top navigates to /
-// - Icon nav items: Home, Bookmarks, Contribute, Profile
-// - Active item gets a blue filled circle
-// - Person icon at bottom = profile
-// - Login/logout at very bottom
+// SVG Icon components (all use currentColor so active/hover states work)
 // ---------------------------------------------------------------------------
+function PersonIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
 
+function MapPinIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+
+function BookmarkSVGIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Order: Profile → Map → Bookmarks  (as specified)
+// ---------------------------------------------------------------------------
 const NAV_ITEMS = [
-  { path: "/",          icon: "⌂",  label: "Home"       },
-  { path: "/bookmarks", icon: "🔖", label: "Bookmarks"  },
-  { path: "/contribute",icon: "＋", label: "Contribute" },
+  { path: "/profile",   icon: <PersonIcon />,      label: "Profile"   },
+  { path: "/",          icon: <MapPinIcon />,       label: "Map"       },
+  { path: "/bookmarks", icon: <BookmarkSVGIcon />,  label: "Bookmarks" },
 ];
 
 export default function Navbar() {
-  const location  = useLocation();
-  const navigate  = useNavigate();
-  const { currentUser, logout } = useAuth();
+  const location = useLocation();
+  const [hovered, setHovered] = useState(null);
 
-  // Hide sidebar on login page — matches mockups (no sidebar on login)
+  // No sidebar on the login page
   if (location.pathname === "/login") return null;
 
   const isActive = (path) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate("/");
-  };
-
-  const iconBtnStyle = (active) => ({
-    width:           "44px",
-    height:          "44px",
-    borderRadius:    "50%",
-    display:         "flex",
-    alignItems:      "center",
-    justifyContent:  "center",
-    fontSize:        "20px",
-    cursor:          "pointer",
-    border:          "none",
-    backgroundColor: active ? "#2563eb" : "transparent",
-    color:           active ? "#fff" : "#6b7280",
-    transition:      "background-color 0.15s, color 0.15s",
-    textDecoration:  "none",
-  });
 
   return (
     <div
@@ -59,95 +58,68 @@ export default function Navbar() {
         width:           "68px",
         height:          "100vh",
         backgroundColor: "#fff",
-        borderRight:     "1px solid #e5e7eb",
+        borderRight:     "1px solid #f3f4f6",
         display:         "flex",
         flexDirection:   "column",
         alignItems:      "center",
-        paddingTop:      "12px",
-        paddingBottom:   "16px",
+        paddingTop:      "18px",
+        paddingBottom:   "18px",
         zIndex:          100,
-        gap:             "4px",
+        gap:             "0",
       }}
     >
-      {/* Logo — blue ♿ icon, matches mockups top-left */}
-      <Link
-        to="/"
+      {/* ── Logo — circular brand mark, NOT a navigation button ── */}
+      <div
+        title="Pathable"
         style={{
           width:           "44px",
           height:          "44px",
-          borderRadius:    "10px",
+          borderRadius:    "50%",
           backgroundColor: "#2563eb",
           display:         "flex",
           alignItems:      "center",
           justifyContent:  "center",
-          fontSize:        "22px",
+          fontSize:        "20px",
           color:           "#fff",
-          textDecoration:  "none",
-          marginBottom:    "16px",
           flexShrink:      0,
+          marginBottom:    "28px",
+          userSelect:      "none",
         }}
-        title="Pathable"
       >
         ♿
-      </Link>
+      </div>
 
-      {/* Main nav items */}
-      {NAV_ITEMS.map(({ path, icon, label }) => (
-        <Link
-          key={path}
-          to={path}
-          title={label}
-          style={iconBtnStyle(isActive(path))}
-        >
-          {icon}
-        </Link>
-      ))}
-
-      {/* Spacer — pushes profile + auth to bottom */}
-      <div style={{ flex: 1 }} />
-
-      {/* Profile */}
-      <Link
-        to="/profile"
-        title="Profile"
-        style={{
-          ...iconBtnStyle(isActive("/profile")),
-          // Active profile uses filled blue circle (matches Image 4/5)
-          backgroundColor: isActive("/profile") ? "#2563eb" : "#f3f4f6",
-          color:           isActive("/profile") ? "#fff" : "#6b7280",
-        }}
-      >
-        👤
-      </Link>
-
-      {/* Login / Logout */}
-      {currentUser ? (
-        <button
-          onClick={handleLogout}
-          title="Logout"
-          style={{
-            ...iconBtnStyle(false),
-            backgroundColor: "transparent",
-            fontSize:        "16px",
-            marginTop:       "4px",
-          }}
-        >
-          ↩
-        </button>
-      ) : (
-        <Link
-          to="/login"
-          title="Login"
-          style={{
-            ...iconBtnStyle(false),
-            fontSize:   "14px",
-            fontWeight: "700",
-            marginTop:  "4px",
-          }}
-        >
-          →
-        </Link>
-      )}
+      {/* ── Nav items ── */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+        {NAV_ITEMS.map(({ path, icon, label }) => {
+          const active = isActive(path);
+          return (
+            <Link
+              key={path}
+              to={path}
+              title={label}
+              onMouseEnter={() => setHovered(path)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                width:           "48px",
+                height:          "48px",
+                borderRadius:    "50%",
+                display:         "flex",
+                alignItems:      "center",
+                justifyContent:  "center",
+                backgroundColor: active ? "#2563eb" : hovered === path ? "#f3f4f6" : "transparent",
+                color:           active ? "#fff" : "#6b7280",
+                textDecoration:  "none",
+                transition:      "background-color 0.15s, color 0.15s",
+                cursor:          "pointer",
+                flexShrink:      0,
+              }}
+            >
+              {icon}
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }

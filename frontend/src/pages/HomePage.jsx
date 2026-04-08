@@ -5,67 +5,71 @@ import SearchBar    from "../components/SearchBar";
 import { getTopRated } from "../services/api";
 
 // ---------------------------------------------------------------------------
-// SelectedPanel — shows below map when a business pin is clicked
+// SelectedCard — compact floating preview card over the map
 // ---------------------------------------------------------------------------
-function SelectedPanel({ business, onClose }) {
-  const checks = [
-    { label: "Ramps",              value: business.wheelchair_accessible },
-    { label: "Accessible Parking", value: business.accessible_parking },
-    { label: "Elevator",           value: business.elevator },
-    { label: "Auto Doors",         value: business.auto_doors },
-  ];
+function SelectedCard({ business, onClose }) {
+  const score = business.accessibility_score;
+  const scoreColor = score == null ? "#9ca3af" : score >= 75 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626";
+  const scoreBg    = score == null ? "#f3f4f6" : score >= 75 ? "#f0fdf4" : score >= 50 ? "#fffbeb" : "#fef2f2";
+
+  const tags = [
+    business.wheelchair_accessible != null && { label: "Wheelchair", ok: business.wheelchair_accessible },
+    business.accessible_parking    != null && { label: "Parking",    ok: business.accessible_parking },
+    business.entrance_width_rating         && { label: `Entrance: ${business.entrance_width_rating.charAt(0).toUpperCase() + business.entrance_width_rating.slice(1)}`, ok: business.entrance_width_rating !== "narrow" },
+  ].filter(Boolean).slice(0, 3);
 
   return (
-    <div style={{ borderTop: "1px solid #e5e7eb", padding: "16px", backgroundColor: "#fff", position: "relative" }}>
+    <div style={{
+      position:        "absolute",
+      bottom:          "20px",
+      left:            "50%",
+      transform:       "translateX(-50%)",
+      width:           "calc(100% - 40px)",
+      maxWidth:        "420px",
+      backgroundColor: "#fff",
+      borderRadius:    "14px",
+      padding:         "16px 18px",
+      boxShadow:       "0 4px 20px rgba(0,0,0,0.14)",
+      zIndex:          10,
+      display:         "flex",
+      flexDirection:   "column",
+      gap:             "8px",
+    }}>
       <button
         onClick={onClose}
-        style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#6b7280" }}
-      >
-        ✕
-      </button>
+        style={{ position: "absolute", top: "10px", right: "12px", background: "none", border: "none", fontSize: "16px", cursor: "pointer", color: "#9ca3af", lineHeight: 1 }}
+      >✕</button>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", flexWrap: "wrap" }}>
-        <span style={{ fontWeight: "700", fontSize: "17px" }}>{business.name}</span>
-        {business.accessibility_score != null && (
-          <span
-            style={{
-              backgroundColor: business.accessibility_score >= 75 ? "#f0fdf4" : business.accessibility_score >= 50 ? "#fffbeb" : "#fef2f2",
-              color:           business.accessibility_score >= 75 ? "#16a34a" : business.accessibility_score >= 50 ? "#d97706" : "#dc2626",
-              border:          `1px solid ${business.accessibility_score >= 75 ? "#bbf7d0" : business.accessibility_score >= 50 ? "#fde68a" : "#fecaca"}`,
-              borderRadius:    "6px",
-              padding:         "2px 8px",
-              fontSize:        "13px",
-              fontWeight:      "700",
-            }}
-          >
-            {business.accessibility_score}/100
+      {/* Name + score */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", paddingRight: "24px" }}>
+        <span style={{ fontWeight: "700", fontSize: "15px", color: "#111827", flex: 1 }}>{business.name}</span>
+        {score != null && (
+          <span style={{ fontSize: "12px", fontWeight: "700", color: scoreColor, backgroundColor: scoreBg, borderRadius: "6px", padding: "2px 7px", flexShrink: 0 }}>
+            {score}/100
           </span>
         )}
       </div>
 
-      <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#6b7280" }}>📍 {business.address}</p>
+      {/* Address */}
+      <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>📍 {business.address}</p>
 
-      {business.entrance_width_rating && (
-        <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#374151" }}>
-          Door Width: <strong>{business.entrance_width_rating}</strong>
-        </p>
+      {/* Tags */}
+      {tags.length > 0 && (
+        <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+          {tags.map(({ label, ok }) => (
+            <span key={label} style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "999px", backgroundColor: ok ? "#f0fdf4" : "#fef2f2", color: ok ? "#16a34a" : "#dc2626" }}>
+              {label}
+            </span>
+          ))}
+        </div>
       )}
 
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "14px" }}>
-        {checks.map(({ label, value }) =>
-          value != null && (
-            <span key={label} style={{ fontSize: "13px", color: value ? "#16a34a" : "#9ca3af" }}>
-              {value ? "✓" : "✗"} {label}
-            </span>
-          )
-        )}
-      </div>
-
+      {/* View details */}
       <a
         href={`/business/${business.id}`}
-        style={{ fontSize: "13px", color: "#2563eb", textDecoration: "none", fontWeight: "500" }}
+        style={{ display: "block", textAlign: "center", padding: "9px", backgroundColor: "#111827", color: "#fff", borderRadius: "8px", fontSize: "13px", fontWeight: "600", textDecoration: "none", marginTop: "2px" }}
       >
-        View full details →
+        View Details →
       </a>
     </div>
   );
@@ -109,14 +113,16 @@ export default function HomePage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "sans-serif" }}>
 
-      {/* Top bar — single unified search bar */}
+      {/* Top bar — search */}
       <div
         style={{
-          padding:         "10px 16px",
-          borderBottom:    "1px solid #e5e7eb",
-          backgroundColor: "#fff",
+          padding:         "10px 20px",
+          backgroundColor: "#f9fafb",
+          borderBottom:    "1px solid #f0f0f0",
           display:         "flex",
           alignItems:      "center",
+          zIndex:          10,
+          position:        "relative",
         }}
       >
         <SearchBar onSelectBusiness={handleSelectBusiness} />
@@ -125,40 +131,27 @@ export default function HomePage() {
       {/* Main content */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
-        {/* Left — map + selected panel */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ flex: 1, position: "relative" }}>
-            <MapView
-              businesses={businesses}
-              selectedBusiness={selectedBusiness}
-              onSelectBusiness={handleSelectBusiness}
-              mapCenter={null}
-            />
-
-            {/* Map label */}
-            <div style={{ position: "absolute", top: "12px", left: "12px", backgroundColor: "#fff", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", fontWeight: "600", boxShadow: "0 1px 4px rgba(0,0,0,0.15)", pointerEvents: "none" }}>
-              Top Rated Locations
-            </div>
-
-            {/* Legend */}
-            <div style={{ position: "absolute", bottom: "12px", right: "12px", backgroundColor: "#fff", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", gap: "4px", pointerEvents: "none" }}>
-              <span>🔴 Location</span>
-              <span>🔵 Selected</span>
-            </div>
-          </div>
+        {/* Left — map with floating preview card */}
+        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          <MapView
+            businesses={businesses}
+            selectedBusiness={selectedBusiness}
+            onSelectBusiness={handleSelectBusiness}
+            mapCenter={null}
+          />
 
           {selectedBusiness && (
-            <SelectedPanel business={selectedBusiness} onClose={() => setSelectedBusiness(null)} />
+            <SelectedCard business={selectedBusiness} onClose={() => setSelectedBusiness(null)} />
           )}
         </div>
 
         {/* Right — ranked business list */}
-        <div style={{ width: "380px", overflowY: "auto", borderLeft: "1px solid #e5e7eb", padding: "16px", backgroundColor: "#f9fafb" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-            <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827", display: "flex", alignItems: "center", gap: "6px" }}>
-              ♿ Top Rated
+        <div style={{ width: "340px", overflowY: "auto", borderLeft: "1px solid #ebebeb", padding: "16px 12px", backgroundColor: "#f9fafb" }}>
+          <div style={{ marginBottom: "14px" }}>
+            <h2 style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: "700", color: "#374151", letterSpacing: "0.2px" }}>
+              Top Rated Nearby
             </h2>
-            <span style={{ fontSize: "12px", color: "#9ca3af" }}>by Pathable score</span>
+            <p style={{ margin: 0, fontSize: "11px", color: "#9ca3af" }}>Ranked by Pathable score</p>
           </div>
 
           {loading && <p style={{ color: "#6b7280", fontSize: "14px" }}>Loading locations...</p>}

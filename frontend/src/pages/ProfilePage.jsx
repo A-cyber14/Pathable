@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getProfile, updateProfile } from "../services/api";
 
@@ -20,7 +21,8 @@ const FEATURE_OPTIONS = [
 ];
 
 export default function ProfilePage() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [disabilityType,     setDisabilityType]     = useState("");
   const [featurePreferences, setFeaturePreferences] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,50 +63,48 @@ export default function ProfilePage() {
 
   const cardStyle = {
     backgroundColor: "#fff",
-    border:          "1.5px solid #e5e7eb",
-    borderRadius:    "14px",
-    padding:         "24px",
-    marginBottom:    "20px",
+    border:          "1px solid #e5e7eb",
+    borderRadius:    "12px",
+    padding:         "20px",
+    marginBottom:    "16px",
+    boxShadow:       "0 1px 3px rgba(0,0,0,0.04)",
   };
 
   return (
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: "32px 24px" }}>
       <div style={{ maxWidth: "700px", margin: "0 auto" }}>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-          <span style={{ fontSize: "22px" }}>👤</span>
-          <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#111827", margin: 0 }}>
-            Profile Settings
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+          <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#111827", margin: 0 }}>
+            Profile
           </h1>
+          {currentUser && (
+            <button
+              onClick={async () => { await logout(); navigate("/"); }}
+              style={{ padding: "7px 14px", backgroundColor: "#fff", color: "#6b7280", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "13px", fontWeight: "500", cursor: "pointer" }}
+            >
+              Sign out
+            </button>
+          )}
         </div>
-        <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 28px" }}>
-          Customize your experience based on your accessibility needs
-        </p>
 
-        <div style={{ ...cardStyle, backgroundColor: "#f8faff", borderColor: "#c7d7f8" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                <span style={{ fontSize: "18px" }}>🧭</span>
-                <span style={{ fontWeight: "700", fontSize: "16px", color: "#111827" }}>Local Guide</span>
-              </div>
-              <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#6b7280" }}>
-                {currentUser?.displayName || currentUser?.email || "Contributor"}
-              </p>
-            </div>
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "4px 12px", fontSize: "13px", fontWeight: "600", color: "#374151", display: "flex", alignItems: "center", gap: "6px" }}>
-              <span>🏅</span> Level 1
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "24px" }}>
+        {/* Section 1 — Account Info */}
+        <div style={{ ...cardStyle, borderColor: "#e5e7eb" }}>
+          <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: "600", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>Account</p>
+          <p style={{ margin: "0 0 14px", fontSize: "15px", fontWeight: "600", color: "#111827" }}>
+            {currentUser?.displayName || currentUser?.email || "Contributor"}
+          </p>
+          {/* Section 3 — Contribution Stats */}
+          <p style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "600", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>Contributions</p>
+          <div style={{ display: "flex", gap: "20px" }}>
             {[
-              { icon: "📷", count: 0, label: "Photos Uploaded"    },
-              { icon: "📍", count: 0, label: "Features Added"     },
-              { icon: "💬", count: 0, label: "Locations Reviewed" },
+              { icon: "📷", count: 0, label: "Photos"   },
+              { icon: "📍", count: 0, label: "Features" },
+              { icon: "💬", count: 0, label: "Reviews"  },
             ].map(({ icon, count, label }) => (
-              <div key={label} style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "20px", fontWeight: "800", color: "#2563eb" }}>{icon} {count}</div>
-                <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>{label}</div>
+              <div key={label}>
+                <div style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>{icon} {count}</div>
+                <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "1px" }}>{label}</div>
               </div>
             ))}
           </div>
@@ -114,13 +114,12 @@ export default function ProfilePage() {
 
         {!loading && (
           <>
+            {/* Section 2 — Accessibility Preferences */}
             <div style={cardStyle}>
-              <h2 style={{ fontSize: "15px", fontWeight: "700", color: "#111827", margin: "0 0 4px" }}>
-                Physical Disability Type
+              <p style={{ margin: "0 0 12px", fontSize: "12px", fontWeight: "600", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>Accessibility Needs</p>
+              <h2 style={{ fontSize: "14px", fontWeight: "600", color: "#111827", margin: "0 0 10px" }}>
+                Primary accessibility need
               </h2>
-              <p style={{ fontSize: "13px", color: "#6b7280", margin: "0 0 14px" }}>
-                Select your primary mobility consideration
-              </p>
               <select
                 value={disabilityType}
                 onChange={(e) => { setDisabilityType(e.target.value); setSaved(false); }}
@@ -143,12 +142,9 @@ export default function ProfilePage() {
             </div>
 
             <div style={cardStyle}>
-              <h2 style={{ fontSize: "15px", fontWeight: "700", color: "#111827", margin: "0 0 4px" }}>
-                Feature Preferences
+              <h2 style={{ fontSize: "14px", fontWeight: "600", color: "#111827", margin: "0 0 12px" }}>
+                Feature preferences
               </h2>
-              <p style={{ fontSize: "13px", color: "#6b7280", margin: "0 0 16px" }}>
-                Select features that are most important to you. These will be highlighted when searching for locations.
-              </p>
 
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {FEATURE_OPTIONS.map(({ value, label, desc }) => (

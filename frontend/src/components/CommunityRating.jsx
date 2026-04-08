@@ -170,23 +170,6 @@ export default function CommunityRating({ businessId }) {
             )}
           </div>
 
-          {/* Leave review button */}
-          <button
-            onClick={handleWriteReview}
-            style={{
-              padding:         "8px 16px",
-              backgroundColor: "#fff",
-              color:           "#111827",
-              border:          "1px solid #d1d5db",
-              borderRadius:    "10px",
-              fontSize:        "14px",
-              fontWeight:      "500",
-              cursor:          "pointer",
-              boxShadow:       "0 1px 3px rgba(0,0,0,0.06)",
-            }}
-          >
-            ✍️ Leave a Review
-          </button>
         </div>
       </div>
 
