@@ -326,6 +326,7 @@ class PhotoSubmission(BaseModel):
     category:   Optional[str] = None
     caption:    Optional[str] = None
     uploadedBy: Optional[str] = None
+    mediaType:  Optional[str] = "image"  # "image" | "video"
 
 
 @router.post("/{business_id}/photos", status_code=201)
@@ -335,8 +336,9 @@ def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = H
     if not db.collection(COLLECTION).document(business_id).get().exists:
         raise HTTPException(status_code=404, detail=f"Business '{business_id}' not found")
 
-    now      = datetime.now(timezone.utc).isoformat()
-    category = body.category or "Other"
+    now        = datetime.now(timezone.utc).isoformat()
+    category   = body.category or "Other"
+    media_type = body.mediaType if body.mediaType in ("image", "video") else "image"
 
     # 1. Moderation audit trail (unchanged behaviour)
     db.collection("contributions").add({
@@ -347,6 +349,7 @@ def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = H
         "category":   category,
         "caption":    body.caption,
         "uploadedBy": body.uploadedBy or uid,
+        "mediaType":  media_type,
         "status":     "pending_review",
         "verified":   False,
         "createdAt":  now,
@@ -359,10 +362,11 @@ def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = H
         "category":   category,
         "caption":    body.caption,
         "uploadedBy": body.uploadedBy or uid,
+        "mediaType":  media_type,
         "createdAt":  now,
     })
 
-    return {"message": "Photo submitted and is now visible on the business page"}
+    return {"message": "Media submitted and is now visible on the business page"}
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +430,9 @@ def get_business_photos(business_id: str):
     for doc in docs:
         data = doc.to_dict()
         data["id"] = doc.id
+        # Backward-compat: old records without mediaType are images
+        if "mediaType" not in data:
+            data["mediaType"] = "image"
         results.append(data)
 
     # Newest-first so first item per category is the most recent upload

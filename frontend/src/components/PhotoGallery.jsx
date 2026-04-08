@@ -14,6 +14,34 @@ export const PHOTO_CATEGORIES = [
   { key: "other",     label: "Other",                icon: "📷" },
 ];
 
+// Backward compat helper: old records without mediaType default to "image"
+function getMediaType(item) {
+  return item.mediaType === "video" ? "video" : "image";
+}
+
+// ---------------------------------------------------------------------------
+// MediaItem — renders either an image or a video
+// ---------------------------------------------------------------------------
+
+function MediaItem({ item, style = {} }) {
+  if (getMediaType(item) === "video") {
+    return (
+      <video
+        src={item.photoUrl}
+        controls
+        style={{ width: "100%", maxHeight: "560px", display: "block", backgroundColor: "#000", ...style }}
+      />
+    );
+  }
+  return (
+    <img
+      src={item.photoUrl}
+      alt={item.caption || ""}
+      style={{ width: "100%", maxHeight: "560px", objectFit: "contain", display: "block", ...style }}
+    />
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Modal — scrollable gallery for one category
 // ---------------------------------------------------------------------------
@@ -37,7 +65,14 @@ function PhotoModal({ photos, initialIndex = 0, category, onClose }) {
     return () => window.removeEventListener("keydown", handler);
   }, [go, onClose]);
 
-  const photo = photos[index];
+  // Trap body scroll while open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  const item = photos[index];
 
   return (
     <div
@@ -92,36 +127,27 @@ function PhotoModal({ photos, initialIndex = 0, category, onClose }) {
           <button
             onClick={onClose}
             style={{
-              background:   "none",
-              border:       "1px solid #374151",
-              borderRadius: "8px",
-              color:        "#9ca3af",
-              fontSize:     "18px",
-              cursor:       "pointer",
-              width:        "32px",
-              height:       "32px",
-              display:      "flex",
-              alignItems:   "center",
+              background:     "none",
+              border:         "1px solid #374151",
+              borderRadius:   "8px",
+              color:          "#9ca3af",
+              fontSize:       "18px",
+              cursor:         "pointer",
+              width:          "32px",
+              height:         "32px",
+              display:        "flex",
+              alignItems:     "center",
               justifyContent: "center",
-              lineHeight:   1,
+              lineHeight:     1,
             }}
           >
             ✕
           </button>
         </div>
 
-        {/* Main image */}
+        {/* Main media area */}
         <div style={{ position: "relative", backgroundColor: "#000" }}>
-          <img
-            src={photo.photoUrl}
-            alt={photo.caption || category}
-            style={{
-              width:      "100%",
-              maxHeight:  "560px",
-              objectFit:  "contain",
-              display:    "block",
-            }}
-          />
+          <MediaItem item={item} />
 
           {/* Prev / Next */}
           {photos.length > 1 && (
@@ -145,53 +171,87 @@ function PhotoModal({ photos, initialIndex = 0, category, onClose }) {
         </div>
 
         {/* Caption */}
-        {photo.caption && (
+        {item.caption && (
           <div
             style={{
-              padding:    "12px 20px",
-              fontSize:   "13px",
-              color:      "#d1d5db",
-              borderTop:  "1px solid #1f2937",
+              padding:   "12px 20px",
+              fontSize:  "13px",
+              color:     "#d1d5db",
+              borderTop: "1px solid #1f2937",
             }}
           >
-            {photo.caption}
+            {item.caption}
           </div>
         )}
 
-        {/* Thumbnail strip — when multiple images */}
+        {/* Thumbnail strip — when multiple items */}
         {photos.length > 1 && (
           <div
             style={{
-              display:    "flex",
-              gap:        "6px",
-              padding:    "10px 16px",
-              overflowX:  "auto",
-              borderTop:  "1px solid #1f2937",
+              display:   "flex",
+              gap:       "6px",
+              padding:   "10px 16px",
+              overflowX: "auto",
+              borderTop: "1px solid #1f2937",
             }}
           >
             {photos.map((p, i) => (
-              <img
+              <ThumbnailStrip
                 key={i}
-                src={p.photoUrl}
-                alt={p.caption || `Photo ${i + 1}`}
+                item={p}
+                active={i === index}
                 onClick={() => setIndex(i)}
-                style={{
-                  width:        "60px",
-                  height:       "44px",
-                  objectFit:    "cover",
-                  borderRadius: "6px",
-                  cursor:       "pointer",
-                  flexShrink:   0,
-                  border:       i === index ? "2px solid #2563eb" : "2px solid transparent",
-                  opacity:      i === index ? 1 : 0.55,
-                  transition:   "opacity 0.15s, border-color 0.15s",
-                }}
               />
             ))}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+// Small thumbnail for the strip at the bottom of the modal
+function ThumbnailStrip({ item, active, onClick }) {
+  const isVideo = getMediaType(item) === "video";
+  const baseStyle = {
+    width:        "60px",
+    height:       "44px",
+    objectFit:    "cover",
+    borderRadius: "6px",
+    cursor:       "pointer",
+    flexShrink:   0,
+    border:       active ? "2px solid #2563eb" : "2px solid transparent",
+    opacity:      active ? 1 : 0.55,
+    transition:   "opacity 0.15s, border-color 0.15s",
+    backgroundColor: "#000",
+    display:      "block",
+  };
+
+  if (isVideo) {
+    return (
+      <div
+        onClick={onClick}
+        style={{
+          ...baseStyle,
+          display:        "flex",
+          alignItems:     "center",
+          justifyContent: "center",
+          fontSize:       "18px",
+          backgroundColor: "#1f2937",
+        }}
+      >
+        🎬
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={item.photoUrl}
+      alt={item.caption || ""}
+      onClick={onClick}
+      style={baseStyle}
+    />
   );
 }
 
@@ -222,42 +282,64 @@ function navBtnStyle(side) {
 
 function CategoryTile({ category, photos, onOpenModal }) {
   const { key, label, icon } = category;
-  const hasPhotos = photos.length > 0;
-  const preview   = photos[0]; // most recent (API returns newest-first)
-  const extra     = photos.length - 1; // stacked count
+  const hasMedia = photos.length > 0;
+  const preview  = photos[0]; // most recent (API returns newest-first)
+  const extra    = photos.length - 1;
+  const previewIsVideo = hasMedia && getMediaType(preview) === "video";
+  const hasAnyVideo    = photos.some((p) => getMediaType(p) === "video");
 
   return (
     <div
-      onClick={() => hasPhotos && onOpenModal(key, 0)}
+      onClick={() => hasMedia && onOpenModal(key, 0)}
       style={{
         borderRadius:    "12px",
         overflow:        "hidden",
         border:          "1.5px solid #e5e7eb",
         backgroundColor: "#f9fafb",
-        cursor:          hasPhotos ? "pointer" : "default",
+        cursor:          hasMedia ? "pointer" : "default",
         transition:      "box-shadow 0.15s, border-color 0.15s",
         position:        "relative",
       }}
       onMouseEnter={(e) => {
-        if (hasPhotos) {
-          e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.12)";
+        if (hasMedia) {
+          e.currentTarget.style.boxShadow  = "0 4px 14px rgba(0,0,0,0.12)";
           e.currentTarget.style.borderColor = "#2563eb";
         }
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.boxShadow  = "none";
         e.currentTarget.style.borderColor = "#e5e7eb";
       }}
     >
-      {/* Image area */}
+      {/* Media preview area */}
       <div style={{ position: "relative", aspectRatio: "4/3", backgroundColor: "#f3f4f6" }}>
-        {hasPhotos ? (
+        {hasMedia ? (
           <>
-            <img
-              src={preview.photoUrl}
-              alt={preview.caption || label}
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
+            {previewIsVideo ? (
+              /* Video thumbnail — show a muted preview */
+              <div
+                style={{
+                  width:           "100%",
+                  height:          "100%",
+                  display:         "flex",
+                  flexDirection:   "column",
+                  alignItems:      "center",
+                  justifyContent:  "center",
+                  backgroundColor: "#111827",
+                  gap:             "6px",
+                }}
+              >
+                <span style={{ fontSize: "28px" }}>🎬</span>
+                <span style={{ fontSize: "11px", color: "#9ca3af", fontWeight: "500" }}>Video</span>
+              </div>
+            ) : (
+              <img
+                src={preview.photoUrl}
+                alt={preview.caption || label}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            )}
+
             {/* Stacked indicator */}
             {extra > 0 && (
               <div
@@ -280,6 +362,27 @@ function CategoryTile({ category, photos, onOpenModal }) {
                 <span style={{ fontSize: "10px" }}>⧉</span> +{extra}
               </div>
             )}
+
+            {/* Video badge — shown when category has any video (but preview is image) */}
+            {!previewIsVideo && hasAnyVideo && (
+              <div
+                style={{
+                  position:        "absolute",
+                  top:             "8px",
+                  left:            "8px",
+                  backgroundColor: "rgba(0,0,0,0.65)",
+                  color:           "#fff",
+                  borderRadius:    "6px",
+                  padding:         "2px 6px",
+                  fontSize:        "10px",
+                  fontWeight:      "600",
+                  backdropFilter:  "blur(2px)",
+                }}
+              >
+                🎬
+              </div>
+            )}
+
             {/* Expand icon overlay */}
             <div
               style={{
@@ -294,10 +397,13 @@ function CategoryTile({ category, photos, onOpenModal }) {
               onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.25)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "rgba(0,0,0,0)"; }}
             >
-              <span style={{ fontSize: "22px", opacity: 0, transition: "opacity 0.15s" }}
+              <span
+                style={{ fontSize: "22px", opacity: 0, transition: "opacity 0.15s" }}
                 onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; }}
                 onMouseLeave={(e) => { e.currentTarget.style.opacity = 0; }}
-              >🔍</span>
+              >
+                🔍
+              </span>
             </div>
           </>
         ) : (
@@ -316,7 +422,7 @@ function CategoryTile({ category, photos, onOpenModal }) {
             }}
           >
             <span style={{ fontSize: "26px" }}>{icon}</span>
-            <span style={{ fontSize: "11px", color: "#9ca3af", fontWeight: "500" }}>No photo yet</span>
+            <span style={{ fontSize: "11px", color: "#9ca3af", fontWeight: "500" }}>No media yet</span>
           </div>
         )}
       </div>
@@ -333,7 +439,7 @@ function CategoryTile({ category, photos, onOpenModal }) {
       >
         <span style={{ fontSize: "14px" }}>{icon}</span>
         <span style={{ fontSize: "13px", fontWeight: "600", color: "#111827" }}>{label}</span>
-        {hasPhotos && (
+        {hasMedia && (
           <span
             style={{
               marginLeft:      "auto",
@@ -368,7 +474,6 @@ export default function PhotoGallery({ businessId }) {
     setLoading(true);
     getBusinessPhotos(businessId)
       .then((photos) => {
-        // Group by category
         const grouped = {};
         PHOTO_CATEGORIES.forEach(({ key }) => { grouped[key] = []; });
         photos.forEach((p) => {
@@ -387,30 +492,30 @@ export default function PhotoGallery({ businessId }) {
 
   const modalPhotos = modal ? (photosByCategory[modal.category] ?? []) : [];
 
-  const totalPhotos = Object.values(photosByCategory).reduce((n, arr) => n + arr.length, 0);
+  const totalMedia = Object.values(photosByCategory).reduce((n, arr) => n + arr.length, 0);
 
   return (
     <>
       {/* Section header */}
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
         <span style={{ fontSize: "16px" }}>🖼</span>
-        <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" }}>Photos</h2>
+        <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" }}>Photos & Videos</h2>
         <span
           style={{
-            backgroundColor: totalPhotos > 0 ? "#111827" : "#e5e7eb",
-            color:           totalPhotos > 0 ? "#fff" : "#6b7280",
+            backgroundColor: totalMedia > 0 ? "#111827" : "#e5e7eb",
+            color:           totalMedia > 0 ? "#fff" : "#6b7280",
             borderRadius:    "999px",
             padding:         "1px 8px",
             fontSize:        "12px",
             fontWeight:      "600",
           }}
         >
-          {loading ? "…" : totalPhotos}
+          {loading ? "…" : totalMedia}
         </span>
       </div>
 
       {loading ? (
-        <p style={{ fontSize: "13px", color: "#9ca3af" }}>Loading photos…</p>
+        <p style={{ fontSize: "13px", color: "#9ca3af" }}>Loading media…</p>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
           {PHOTO_CATEGORIES.map((cat) => (

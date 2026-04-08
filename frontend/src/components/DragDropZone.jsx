@@ -1,8 +1,13 @@
 import { useRef, useState } from "react";
 
-const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-const MAX_SIZE_MB    = 10;
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const ACCEPTED_TYPES       = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
+
+const MAX_IMAGE_MB    = 10;
+const MAX_VIDEO_MB    = 100;
+const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
+const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
 // DragDropZone
@@ -16,35 +21,35 @@ export default function DragDropZone({ onFileSelected, disabled }) {
   const [dragging, setDragging] = useState(false);
   const [error,    setError]    = useState(null);
 
-  // Validate file type and size, then pass it up
   function handleFile(file) {
     setError(null);
 
     if (!file) return;
 
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      return setError("Only JPG, PNG, and WebP images are accepted.");
+      return setError("Only JPG, PNG, WebP images or MP4, WebM, MOV videos are accepted.");
     }
 
-    if (file.size > MAX_SIZE_BYTES) {
-      return setError(`File is too large. Maximum size is ${MAX_SIZE_MB}MB.`);
+    const isVideo    = ACCEPTED_VIDEO_TYPES.includes(file.type);
+    const maxBytes   = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    const maxLabel   = isVideo ? `${MAX_VIDEO_MB}MB` : `${MAX_IMAGE_MB}MB`;
+
+    if (file.size > maxBytes) {
+      return setError(`File is too large. Maximum size is ${maxLabel}.`);
     }
 
     onFileSelected(file);
   }
 
-  // --- Drag events ---
   const onDragOver  = (e) => { e.preventDefault(); if (!disabled) setDragging(true);  };
   const onDragLeave = ()  => setDragging(false);
   const onDrop      = (e) => {
     e.preventDefault();
     setDragging(false);
     if (disabled) return;
-    const file = e.dataTransfer.files[0];
-    handleFile(file);
+    handleFile(e.dataTransfer.files[0]);
   };
 
-  // --- Click to browse ---
   const onInputChange = (e) => handleFile(e.target.files[0]);
   const openPicker    = ()  => { if (!disabled) inputRef.current?.click(); };
 
@@ -66,15 +71,15 @@ export default function DragDropZone({ onFileSelected, disabled }) {
           opacity:         disabled ? 0.6 : 1,
         }}
       >
-        <div style={{ fontSize: "32px", marginBottom: "8px" }}>📷</div>
+        <div style={{ fontSize: "32px", marginBottom: "8px" }}>📁</div>
         <p style={{ margin: "0 0 4px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>
-          Drag & drop an image here
+          Drag & drop a photo or video here
         </p>
         <p style={{ margin: 0, fontSize: "13px", color: "#9ca3af" }}>
           or <span style={{ color: "#2563eb", textDecoration: "underline" }}>click to browse</span>
         </p>
         <p style={{ margin: "8px 0 0", fontSize: "11px", color: "#d1d5db" }}>
-          JPG, PNG, WebP — max 10MB
+          Images: JPG, PNG, WebP (max 10MB) · Videos: MP4, WebM, MOV (max 100MB)
         </p>
       </div>
 
@@ -82,12 +87,11 @@ export default function DragDropZone({ onFileSelected, disabled }) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png,image/webp"
+        accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
         onChange={onInputChange}
         style={{ display: "none" }}
       />
 
-      {/* Validation error */}
       {error && (
         <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#dc2626" }}>{error}</p>
       )}
