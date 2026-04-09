@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
-import { getBusiness, addBookmark, getProfile, getBusinessPhotos, submitPhoto, submitFeatures, submitReview } from "../services/api";
+import { getBusiness, addBookmark, getBookmarks, getProfile, getBusinessPhotos, submitPhoto, submitFeatures, submitReview } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import CommunityRating from "../components/CommunityRating";
 import StarRating from "../components/StarRating";
@@ -762,6 +762,15 @@ export default function BusinessDetailPage() {
       .then((data) => setUserPrefs(data.featurePreferences || []))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    getBookmarks()
+      .then((bookmarks) => {
+        if (bookmarks.some((b) => b.id === id)) setBookmarked(true);
+      })
+      .catch(() => {});
+  }, [id]);
 
   const groupedPhotos = useMemo(() => {
     const groups = {};
