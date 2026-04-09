@@ -79,7 +79,7 @@ function VideoThumbnail({ src, onError }) {
   );
 }
 
-function PhotoModal({ photos, category, initialIndex, onClose, onMediaError }) {
+function PhotoModal({ photos, category, initialIndex, onClose, onMediaError, onAddPhoto }) {
   const [index, setIndex] = useState(initialIndex);
 
   useEffect(() => {
@@ -96,9 +96,7 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError }) {
   if (!photo) return null;
 
   const arrowBase = {
-    position:        "absolute",
-    top:             "50%",
-    transform:       "translateY(-50%)",
+    flexShrink:      0,
     background:      "rgba(255,255,255,0.15)",
     border:          "none",
     color:           "#fff",
@@ -152,9 +150,9 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          position:   "relative",
           display:    "flex",
           alignItems: "center",
+          gap:        "8px",
           width:      "100%",
           maxWidth:   "860px",
         }}
@@ -164,17 +162,19 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError }) {
           onClick={() => setIndex((i) => Math.max(i - 1, 0))}
           style={{
             ...arrowBase,
-            left:       "8px",
             visibility: index === 0 ? "hidden" : "visible",
           }}
         >‹</button>
 
         {getMediaType(photo) === "video" ? (
           <video
+            key={photo.id}
             src={photo.photoUrl}
             controls
+            onError={() => { onMediaError?.(photo.id); setIndex((i) => Math.max(i - 1, 0)); }}
             style={{
-              width:        "100%",
+              flex:         "1 1 0",
+              minWidth:     0,
               maxHeight:    "70vh",
               borderRadius: "10px",
               display:      "block",
@@ -183,10 +183,13 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError }) {
           />
         ) : (
           <img
+            key={photo.id}
             src={photo.photoUrl}
             alt={photo.caption || category}
+            onError={() => { onMediaError?.(photo.id); setIndex((i) => Math.max(i - 1, 0)); }}
             style={{
-              width:        "100%",
+              flex:         "1 1 0",
+              minWidth:     0,
               maxHeight:    "70vh",
               objectFit:    "contain",
               borderRadius: "10px",
@@ -200,7 +203,6 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError }) {
           onClick={() => setIndex((i) => Math.min(i + 1, photos.length - 1))}
           style={{
             ...arrowBase,
-            right:      "8px",
             visibility: index === photos.length - 1 ? "hidden" : "visible",
           }}
         >›</button>
@@ -221,6 +223,24 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError }) {
           {photo.caption}
         </div>
       )}
+
+      <button
+        onClick={(e) => { e.stopPropagation(); onAddPhoto?.(category); }}
+        style={{
+          marginTop:       "20px",
+          padding:         "9px 20px",
+          backgroundColor: "#2563eb",
+          color:           "#fff",
+          border:          "none",
+          borderRadius:    "8px",
+          fontSize:        "13px",
+          fontWeight:      "600",
+          cursor:          "pointer",
+          opacity:         0.92,
+        }}
+      >
+        + Add a Photo
+      </button>
     </div>
   );
 }
@@ -961,6 +981,7 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
   const [caption,    setCaption]    = useState("");
   const [uploading,  setUploading]  = useState(false);
   const [uploadPct,  setUploadPct]  = useState(0);
+  const [dragOver,   setDragOver]   = useState(false);
   const fileInputRef = useRef(null);
 
   // ── Features state ───────────────────────────────────────────────────────
@@ -996,13 +1017,53 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
     finally { setSubmittingReview(false); }
   };
 
-  const handleFileChange = (e) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    const ok = ["image/jpeg","image/jpg","image/png","image/webp",...ACPT_VID];
-    if (!ok.includes(f.type))                         { setError("Unsupported file type."); return; }
-    if (ACPT_VID.includes(f.type) && f.size > 100e6)  { setError("Video too large (max 100MB)."); return; }
-    if (!ACPT_VID.includes(f.type) && f.size > 10e6)  { setError("Image too large (max 10MB)."); return; }
-    setFile(f); setPreviewUrl(URL.createObjectURL(f)); setError(null);
+  const clearSelectedFile = () => {
+    setFile(null);
+    setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+    setCaption("");
+  };
+
+  const processFile = (f, hintType = "") => {
+    if (!f) return;
+    const EXT_TO_MIME = {
+      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp",
+      heic: "image/heic", heif: "image/heif",
+      mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
+    };
+    const ext      = f.name.split(".").pop()?.toLowerCase();
+    const mimeType = f.type || hintType || EXT_TO_MIME[ext] || "";
+    const ok = ["image/jpeg","image/jpg","image/png","image/webp","image/heic","image/heif",...ACPT_VID];
+    if (!ok.includes(mimeType))                         { setError("Unsupported file type."); return; }
+    if (ACPT_VID.includes(mimeType) && f.size > 100e6)  { setError("Video too large (max 100MB)."); return; }
+    if (!ACPT_VID.includes(mimeType) && f.size > 10e6)  { setError("Image too large (max 10MB)."); return; }
+    const resolved = mimeType !== f.type ? new File([f], f.name, { type: mimeType }) : f;
+    setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(resolved); });
+    setFile(resolved); setError(null);
+  };
+
+  const handleFileChange = (e) => processFile(e.target.files?.[0]);
+
+  const extractDroppedFile = (e) => {
+    if (e.dataTransfer.items?.length) {
+      for (const item of e.dataTransfer.items) {
+        if (item.kind === "file") {
+          const f = item.getAsFile();
+          if (f) return { file: f, hintType: item.type || "" };
+        }
+      }
+    }
+    const f = e.dataTransfer.files?.[0];
+    return f ? { file: f, hintType: "" } : null;
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault(); e.stopPropagation(); setDragOver(false);
+    const result = extractDroppedFile(e);
+    if (!result) {
+      setError("Could not read the dropped file. Drag from Finder/Desktop, or use Choose File.");
+      return;
+    }
+    processFile(result.file, result.hintType);
   };
 
   const handlePhotoSubmit = async () => {
@@ -1019,7 +1080,7 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
       const url = await getDownloadURL(sRef);
       await submitPhoto(businessId, { photoUrl: url, caption, category, mediaType: isVid ? "video" : "image" });
       setSuccess("Photo/Video uploaded!");
-      setFile(null); setPreviewUrl(null); setCaption("");
+      clearSelectedFile();
     } catch (err) { setError(err.message || "Upload failed."); }
     finally { setUploading(false); setUploadPct(0); }
   };
@@ -1167,17 +1228,22 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
               </div>
               <div>
                 <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "600", color: "#374151" }}>Photo or Video</p>
-                <div onClick={() => fileInputRef.current?.click()}
-                  style={{ border: "2px dashed #d1d5db", borderRadius: "10px", padding: "20px", textAlign: "center", cursor: "pointer", backgroundColor: "#f9fafb" }}>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  style={{ border: `2px dashed ${dragOver ? "#2563eb" : "#d1d5db"}`, borderRadius: "10px", padding: "20px", textAlign: "center", cursor: "pointer", backgroundColor: dragOver ? "#eff6ff" : "#f9fafb", transition: "border-color 0.15s, background-color 0.15s" }}>
                   {previewUrl ? (
                     ACPT_VID.includes(file?.type)
                       ? <video src={previewUrl} style={{ maxHeight: "120px", maxWidth: "100%", borderRadius: "6px" }} />
                       : <img src={previewUrl} alt="preview" style={{ maxHeight: "120px", maxWidth: "100%", borderRadius: "6px", objectFit: "cover" }} />
                   ) : (
-                    <><div style={{ fontSize: "24px", marginBottom: "6px" }}>📁</div>
-                    <p style={{ margin: 0, fontSize: "13px", color: "#6b7280" }}>Click to choose a photo or video</p></>
+                    <><div style={{ fontSize: "24px", marginBottom: "6px" }}>{dragOver ? "⬇️" : "📁"}</div>
+                    <p style={{ margin: 0, fontSize: "13px", color: dragOver ? "#2563eb" : "#6b7280" }}>{dragOver ? "Drop to upload" : "Click or drag a photo/video here"}</p>
+                    {!dragOver && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#9ca3af" }}>Drag from Finder/Desktop for best results. If dragging from Photos doesn&apos;t work, use Choose File.</p>}</>
                   )}
-                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" onChange={handleFileChange} style={{ display: "none" }} />
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/webm,video/quicktime" onChange={handleFileChange} style={{ display: "none" }} />
                 </div>
               </div>
               <input type="text" placeholder="Caption (optional)" value={caption} onChange={(e) => setCaption(e.target.value)} style={inp} />
@@ -1528,6 +1594,7 @@ export default function BusinessDetailPage() {
           initialIndex={modal.index}
           onClose={() => setModal(null)}
           onMediaError={markPhotoBroken}
+          onAddPhoto={(cat) => { setModal(null); setShowContribute({ tab: "photo", category: cat }); }}
         />
       )}
 
