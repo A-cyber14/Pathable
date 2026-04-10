@@ -809,12 +809,14 @@ function buildConfidenceData(business, allPhotos) {
 
   // Map each attribute key to the most relevant photo category for evidence lookup
   const ATTR_PHOTO_CAT = {
-    accessible_parking:    "parking",
-    accessible_restrooms:  "bathroom",
-    wheelchair_accessible: "entrance",
-    entrance_width_rating: "entrance",
-    elevator:              "interior",
-    auto_doors:            "entrance",
+    accessible_parking:           "parking",
+    accessible_restrooms:         "bathroom",
+    wheelchair_accessible:        "entrance",
+    entrance_width_rating:        "entrance",
+    elevator:                     "interior",
+    auto_doors:                   "entrance",
+    wheelchair_accessible_tables: "interior",
+    handrails_available:          "interior",
   };
 
   const catHasPhotos = (cat) =>
@@ -970,6 +972,7 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
     wheelchair_accessible: false, accessible_parking: false,
     accessible_restrooms: false, elevator: false, auto_doors: false,
     entrance_width_rating: "standard",
+    wheelchair_accessible_tables: false, handrails_available: false,
   });
   const [hoverRating,      setHoverRating]      = useState(0);
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -987,7 +990,8 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
   // ── Features state ───────────────────────────────────────────────────────
   const [featureForm, setFeatureForm] = useState({
     wheelchairAccessible: false, accessibleParking: false,
-    accessibleRestroom: false, doorWidth: "",
+    accessibleRestroom: false, wheelchairAccessibleTables: false,
+    handrailsAvailable: false, doorWidth: "",
   });
   const [submittingFeatures, setSubmittingFeatures] = useState(false);
 
@@ -1004,12 +1008,14 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
       await submitReview({
         business_id: businessId, rating: reviewForm.rating,
         comment: reviewForm.comment.trim(),
-        wheelchair_accessible: reviewForm.wheelchair_accessible,
-        accessible_parking:    reviewForm.accessible_parking,
-        accessible_restrooms:  reviewForm.accessible_restrooms,
-        elevator:              reviewForm.elevator,
-        auto_doors:            reviewForm.auto_doors,
-        entrance_width_rating: reviewForm.entrance_width_rating,
+        wheelchair_accessible:        reviewForm.wheelchair_accessible,
+        accessible_parking:           reviewForm.accessible_parking,
+        accessible_restrooms:         reviewForm.accessible_restrooms,
+        elevator:                     reviewForm.elevator,
+        auto_doors:                   reviewForm.auto_doors,
+        entrance_width_rating:        reviewForm.entrance_width_rating,
+        wheelchair_accessible_tables: reviewForm.wheelchair_accessible_tables,
+        handrails_available:          reviewForm.handrails_available,
       });
       setSuccess("Review submitted — thank you!");
       onReviewSuccess?.();
@@ -1181,11 +1187,13 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
                     <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>Accessibility Notes</p>
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                       {[
-                        { key: "wheelchair_accessible", label: "♿ Ramps / wheelchair accessible" },
-                        { key: "accessible_parking",    label: "🚗 Accessible parking"           },
-                        { key: "accessible_restrooms",  label: "🚻 Accessible restrooms"         },
-                        { key: "elevator",              label: "🛗 Elevator"                     },
-                        { key: "auto_doors",            label: "🚪 Automatic doors"              },
+                        { key: "wheelchair_accessible",        label: "♿ Ramps / wheelchair accessible"  },
+                        { key: "accessible_parking",           label: "🚗 Accessible parking"             },
+                        { key: "accessible_restrooms",         label: "🚻 Accessible restrooms"           },
+                        { key: "elevator",                     label: "🛗 Elevator"                       },
+                        { key: "auto_doors",                   label: "🚪 Automatic doors"                },
+                        { key: "wheelchair_accessible_tables", label: "🪑 Wheelchair-accessible tables"   },
+                        { key: "handrails_available",          label: "🪜 Handrails available"            },
                       ].map(({ key, label }) => (
                         <label key={key} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px", color: "#374151" }}>
                           <input type="checkbox" checked={reviewForm[key]} onChange={(e) => setReviewForm((f) => ({ ...f, [key]: e.target.checked }))} style={{ width: "15px", height: "15px", cursor: "pointer" }} />
@@ -1266,9 +1274,11 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
           {tab === "features" && (
             <>
               {[
-                { id: "wheelchairAccessible", label: "Wheelchair Accessible", desc: "Ramps or step-free access",       icon: "♿" },
-                { id: "accessibleParking",    label: "Accessible Parking",    desc: "Designated spaces near entrance", icon: "🚗" },
-                { id: "accessibleRestroom",   label: "Accessible Restroom",   desc: "Wheelchair-accessible restroom",  icon: "🚻" },
+                { id: "wheelchairAccessible",       label: "Wheelchair Accessible",       desc: "Ramps or step-free access",              icon: "♿" },
+                { id: "accessibleParking",          label: "Accessible Parking",          desc: "Designated spaces near entrance",         icon: "🚗" },
+                { id: "accessibleRestroom",         label: "Accessible Restroom",         desc: "Wheelchair-accessible restroom",          icon: "🚻" },
+                { id: "wheelchairAccessibleTables", label: "Wheelchair-accessible tables", desc: "Tables with adequate clearance for wheelchairs", icon: "🪑" },
+                { id: "handrailsAvailable",         label: "Handrails available",         desc: "Handrails on stairs, ramps, or walkways", icon: "🪜" },
               ].map(({ id, label, desc, icon }, i, arr) => (
                 <label key={id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none", cursor: "pointer" }}>
                   <input type="checkbox" checked={featureForm[id]} onChange={(e) => setFeatureForm((p) => ({ ...p, [id]: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer", flexShrink: 0 }} />
@@ -1488,7 +1498,9 @@ export default function BusinessDetailPage() {
                 <CheckRow label="Accessible Restrooms" value={business.accessible_restrooms}  note={business.accessible_restrooms === true ? "Confirmed accessible" : business.accessible_restrooms === false ? "Reported inaccessible" : null} confidence={attrs.accessible_restrooms}  onContribute={() => setShowContribute({})} />
                 <CheckRow label="Elevator"             value={business.elevator}              note={business.elevator === true ? "Present" : business.elevator === false ? "Not present" : null}                                                confidence={attrs.elevator}              onContribute={() => setShowContribute({})} />
                 <CheckRow label="Ramps / Wheelchair"   value={business.wheelchair_accessible} note={business.wheelchair_accessible === true ? "Accessible" : business.wheelchair_accessible === false ? "Not accessible" : null}               confidence={attrs.wheelchair_accessible} onContribute={() => setShowContribute({})} />
-                <CheckRow label="Automatic Doors"      value={business.auto_doors}            note={business.auto_doors === true ? "Present" : business.auto_doors === false ? "Not present" : null}                                           confidence={attrs.auto_doors}            onContribute={() => setShowContribute({})} />
+                <CheckRow label="Automatic Doors"            value={business.auto_doors}                       note={business.auto_doors === true ? "Present" : business.auto_doors === false ? "Not present" : null}                                                         confidence={attrs.auto_doors}                       onContribute={() => setShowContribute({})} />
+                <CheckRow label="Wheelchair-accessible tables" value={business.wheelchair_accessible_tables}  note={business.wheelchair_accessible_tables === true ? "Available" : business.wheelchair_accessible_tables === false ? "Not available" : null}          confidence={attrs.wheelchair_accessible_tables}  onContribute={() => setShowContribute({})} />
+                <CheckRow label="Handrails available"          value={business.handrails_available}           note={business.handrails_available === true ? "Present" : business.handrails_available === false ? "Not present" : null}                               confidence={attrs.handrails_available}           onContribute={() => setShowContribute({})} />
 
                 {/* Entrance Width — non-boolean, handled inline to support tri-state amber */}
                 {(() => {

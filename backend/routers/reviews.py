@@ -36,12 +36,14 @@ class ReviewSubmission(BaseModel):
     business_id:           str
     rating:                int           # required, 1–5
     comment:               str           # required, min 10 chars after strip
-    wheelchair_accessible: bool
-    accessible_parking:    bool
-    accessible_restrooms:  bool
-    elevator:              bool
-    auto_doors:            bool
-    entrance_width_rating: str           # "narrow", "standard", "wide"
+    wheelchair_accessible:        bool
+    accessible_parking:           bool
+    accessible_restrooms:         bool
+    elevator:                     bool
+    auto_doors:                   bool
+    entrance_width_rating:        str           # "narrow", "standard", "wide"
+    wheelchair_accessible_tables: Optional[bool] = None
+    handrails_available:          Optional[bool] = None
 
     @field_validator("rating")
     @classmethod
@@ -112,12 +114,14 @@ def submit_review(review: ReviewSubmission, authorization: str = Header(...)):
         "submittedBy":           uid,
         "rating":                review.rating,
         "comment":               review.comment,   # already stripped by validator
-        "wheelchair_accessible": review.wheelchair_accessible,
-        "accessible_parking":    review.accessible_parking,
-        "accessible_restrooms":  review.accessible_restrooms,
-        "elevator":              review.elevator,
-        "auto_doors":            review.auto_doors,
-        "entrance_width_rating": review.entrance_width_rating,
+        "wheelchair_accessible":        review.wheelchair_accessible,
+        "accessible_parking":           review.accessible_parking,
+        "accessible_restrooms":         review.accessible_restrooms,
+        "elevator":                     review.elevator,
+        "auto_doors":                   review.auto_doors,
+        "entrance_width_rating":        review.entrance_width_rating,
+        "wheelchair_accessible_tables": review.wheelchair_accessible_tables,
+        "handrails_available":          review.handrails_available,
         "status":                "approved",
         "submitted_at":          datetime.now(timezone.utc).isoformat(),
     })

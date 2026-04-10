@@ -445,11 +445,13 @@ def get_business_photos(business_id: str):
 # ---------------------------------------------------------------------------
 
 class FeaturesSubmission(BaseModel):
-    wheelchairAccessible: Optional[bool] = None
-    accessibleParking:    Optional[bool] = None
-    doorWidth:            Optional[int]  = None
-    accessibleRestroom:   Optional[bool] = None
-    notes:                Optional[str]  = None
+    wheelchairAccessible:        Optional[bool] = None
+    accessibleParking:           Optional[bool] = None
+    doorWidth:                   Optional[int]  = None
+    accessibleRestroom:          Optional[bool] = None
+    wheelchairAccessibleTables:  Optional[bool] = None
+    handrailsAvailable:          Optional[bool] = None
+    notes:                       Optional[str]  = None
 
 
 @router.post("/{business_id}/features", status_code=201)
@@ -463,11 +465,13 @@ def submit_features(business_id: str, body: FeaturesSubmission, authorization: s
         "businessId":           business_id,
         "userId":               uid,
         "type":                 "features",
-        "wheelchairAccessible": body.wheelchairAccessible,
-        "accessibleParking":    body.accessibleParking,
-        "doorWidth":            body.doorWidth,
-        "accessibleRestroom":   body.accessibleRestroom,
-        "notes":                body.notes,
+        "wheelchairAccessible":       body.wheelchairAccessible,
+        "accessibleParking":          body.accessibleParking,
+        "doorWidth":                  body.doorWidth,
+        "accessibleRestroom":         body.accessibleRestroom,
+        "wheelchairAccessibleTables": body.wheelchairAccessibleTables,
+        "handrailsAvailable":         body.handrailsAvailable,
+        "notes":                      body.notes,
         "status":               "pending_review",
         "createdAt":            datetime.now(timezone.utc).isoformat(),
     })

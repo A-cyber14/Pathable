@@ -38,6 +38,20 @@
       *, *::before, *::after { box-sizing: border-box; }
       html, body, #root { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
     </style>
+
+    <!--
+      Anti-FOUC: apply display-setting classes before React mounts so the
+      correct larger-text / high-contrast styles are active on first paint.
+    -->
+    <script>
+      (function () {
+        try {
+          var s = JSON.parse(localStorage.getItem("pathable-display-settings") || "{}");
+          if (s.largerText)   document.documentElement.classList.add("larger-text");
+          if (s.highContrast) document.documentElement.classList.add("high-contrast");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -12,11 +12,13 @@ export default function ContributeFeaturesPage() {
   const [businesses,  setBusinesses]  = useState([]);
   const [businessId,  setBusinessId]  = useState("");
   const [form, setForm] = useState({
-    wheelchairAccessible: false,
-    accessibleParking:    false,
-    doorWidth:            "",
-    accessibleRestroom:   false,
-    notes:                "",
+    wheelchairAccessible:       false,
+    accessibleParking:          false,
+    doorWidth:                  "",
+    accessibleRestroom:         false,
+    wheelchairAccessibleTables: false,
+    handrailsAvailable:         false,
+    notes:                      "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [success,    setSuccess]    = useState(false);
@@ -42,7 +44,7 @@ export default function ContributeFeaturesPage() {
         doorWidth: form.doorWidth ? parseInt(form.doorWidth, 10) : null,
       });
       setSuccess(true);
-      setForm({ wheelchairAccessible: false, accessibleParking: false, doorWidth: "", accessibleRestroom: false, notes: "" });
+      setForm({ wheelchairAccessible: false, accessibleParking: false, doorWidth: "", accessibleRestroom: false, wheelchairAccessibleTables: false, handrailsAvailable: false, notes: "" });
       setBusinessId("");
     } catch (err) {
       setError(err.message || "Submission failed.");
@@ -129,13 +131,35 @@ export default function ContributeFeaturesPage() {
           </div>
 
           {/* Accessible restroom */}
-          <div style={{ ...checkRowStyle, borderBottom: "none" }}>
+          <div style={checkRowStyle}>
             <input type="checkbox" id="accessibleRestroom" name="accessibleRestroom"
               checked={form.accessibleRestroom} onChange={handleChange}
               style={{ width: "16px", height: "16px", cursor: "pointer" }} />
             <div>
               <label htmlFor="accessibleRestroom" style={{ ...labelStyle, cursor: "pointer" }}>Accessible Restroom</label>
               <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>Wheelchair-accessible restroom available</p>
+            </div>
+          </div>
+
+          {/* Wheelchair-accessible tables */}
+          <div style={checkRowStyle}>
+            <input type="checkbox" id="wheelchairAccessibleTables" name="wheelchairAccessibleTables"
+              checked={form.wheelchairAccessibleTables} onChange={handleChange}
+              style={{ width: "16px", height: "16px", cursor: "pointer" }} />
+            <div>
+              <label htmlFor="wheelchairAccessibleTables" style={{ ...labelStyle, cursor: "pointer" }}>Wheelchair-accessible tables</label>
+              <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>Tables with adequate clearance for wheelchairs</p>
+            </div>
+          </div>
+
+          {/* Handrails available */}
+          <div style={{ ...checkRowStyle, borderBottom: "none" }}>
+            <input type="checkbox" id="handrailsAvailable" name="handrailsAvailable"
+              checked={form.handrailsAvailable} onChange={handleChange}
+              style={{ width: "16px", height: "16px", cursor: "pointer" }} />
+            <div>
+              <label htmlFor="handrailsAvailable" style={{ ...labelStyle, cursor: "pointer" }}>Handrails available</label>
+              <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>Handrails on stairs, ramps, or walkways</p>
             </div>
           </div>
 

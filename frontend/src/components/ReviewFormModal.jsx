@@ -5,14 +5,16 @@ import { submitReview } from "../services/api";
 import StarRating from "./StarRating";
 
 const INITIAL_FORM = {
-  rating:                0,
-  comment:               "",
-  wheelchair_accessible: false,
-  accessible_parking:    false,
-  accessible_restrooms:  false,
-  elevator:              false,
-  auto_doors:            false,
-  entrance_width_rating: "standard",
+  rating:                       0,
+  comment:                      "",
+  wheelchair_accessible:        false,
+  accessible_parking:           false,
+  accessible_restrooms:         false,
+  elevator:                     false,
+  auto_doors:                   false,
+  entrance_width_rating:        "standard",
+  wheelchair_accessible_tables: false,
+  handrails_available:          false,
 };
 
 export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
@@ -64,15 +66,17 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
     setError(null);
     try {
       await submitReview({
-        business_id:           businessId,
-        rating:                form.rating,
-        comment:               commentTrimmed,
-        wheelchair_accessible: form.wheelchair_accessible,
-        accessible_parking:    form.accessible_parking,
-        accessible_restrooms:  form.accessible_restrooms,
-        elevator:              form.elevator,
-        auto_doors:            form.auto_doors,
-        entrance_width_rating: form.entrance_width_rating,
+        business_id:                  businessId,
+        rating:                       form.rating,
+        comment:                      commentTrimmed,
+        wheelchair_accessible:        form.wheelchair_accessible,
+        accessible_parking:           form.accessible_parking,
+        accessible_restrooms:         form.accessible_restrooms,
+        elevator:                     form.elevator,
+        auto_doors:                   form.auto_doors,
+        entrance_width_rating:        form.entrance_width_rating,
+        wheelchair_accessible_tables: form.wheelchair_accessible_tables,
+        handrails_available:          form.handrails_available,
       });
       onSuccess?.();
       onClose();
@@ -167,6 +171,14 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
               <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
                 <input type="checkbox" checked={form.auto_doors} onChange={(e) => setForm((f) => ({ ...f, auto_doors: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
                 🚪 Automatic doors
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
+                <input type="checkbox" checked={form.wheelchair_accessible_tables} onChange={(e) => setForm((f) => ({ ...f, wheelchair_accessible_tables: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
+                🪑 Wheelchair-accessible tables
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
+                <input type="checkbox" checked={form.handrails_available} onChange={(e) => setForm((f) => ({ ...f, handrails_available: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
+                🪜 Handrails available
               </label>
             </div>
             <div style={{ marginTop: "12px" }}>

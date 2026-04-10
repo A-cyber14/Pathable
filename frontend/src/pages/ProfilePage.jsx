@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getProfile, updateProfile } from "../services/api";
+import { useDisplaySettings } from "../context/DisplaySettingsContext";
 
 const DISABILITY_OPTIONS = [
   { value: "",               label: "Select disability type..." },
@@ -20,9 +21,53 @@ const FEATURE_OPTIONS = [
   { value: "automatic_doors",      label: "Automatic Doors",      desc: "Hands-free entry and exit" },
 ];
 
+function ToggleRow({ id, label, description, checked, onChange }) {
+  return (
+    <label
+      htmlFor={id}
+      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #f3f4f6", cursor: "pointer", gap: "16px" }}
+    >
+      <div>
+        <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{label}</div>
+        {description && (
+          <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>{description}</div>
+        )}
+      </div>
+      {/* Toggle switch — native checkbox drives state; visual track is decorative */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <input
+          type="checkbox"
+          id={id}
+          checked={checked}
+          onChange={onChange}
+          style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer", margin: 0, zIndex: 1 }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            width: "44px", height: "24px", borderRadius: "12px",
+            backgroundColor: checked ? "#2563eb" : "#d1d5db",
+            transition: "background-color 0.2s",
+            display: "flex", alignItems: "center", padding: "2px",
+          }}
+        >
+          <div style={{
+            width: "20px", height: "20px", borderRadius: "50%",
+            backgroundColor: "#ffffff",
+            transform: checked ? "translateX(20px)" : "translateX(0)",
+            transition: "transform 0.2s",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+          }} />
+        </div>
+      </div>
+    </label>
+  );
+}
+
 export default function ProfilePage() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const { largerText, highContrast, toggleLargerText, toggleHighContrast } = useDisplaySettings();
   const [disabilityType,     setDisabilityType]     = useState("");
   const [featurePreferences, setFeaturePreferences] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +153,25 @@ export default function ProfilePage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Display Settings — local-only, no save needed */}
+        <div style={cardStyle}>
+          <p style={{ margin: "0 0 12px", fontSize: "12px", fontWeight: "600", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>Display Settings</p>
+          <ToggleRow
+            id="toggle-larger-text"
+            label="Larger text"
+            description="Increases font sizes across the app for easier reading"
+            checked={largerText}
+            onChange={toggleLargerText}
+          />
+          <ToggleRow
+            id="toggle-high-contrast"
+            label="High contrast"
+            description="Boosts text and background contrast for better visibility"
+            checked={highContrast}
+            onChange={toggleHighContrast}
+          />
         </div>
 
         {loading && <p style={{ color: "#6b7280" }}>Loading profile...</p>}

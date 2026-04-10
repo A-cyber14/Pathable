@@ -1,0 +1,83 @@
+/* ==========================================================================
+   Pathable — Display Accessibility Overrides
+   Classes applied to <html> by DisplaySettingsContext.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   LARGER TEXT
+   Targets React's inline-style px values via CSS attribute selectors.
+   Using !important overrides inline styles without touching components.
+   Each step is ~+2–3px (roughly 15–20% increase) to improve readability
+   while preserving layout proportions (no zoom, no reflow disruption).
+   -------------------------------------------------------------------------- */
+
+html.larger-text *[style*="font-size: 11px"] { font-size: 13px !important; }
+html.larger-text *[style*="font-size: 12px"] { font-size: 14px !important; }
+html.larger-text *[style*="font-size: 13px"] { font-size: 15px !important; }
+html.larger-text *[style*="font-size: 14px"] { font-size: 16px !important; }
+html.larger-text *[style*="font-size: 15px"] { font-size: 17px !important; }
+html.larger-text *[style*="font-size: 16px"] { font-size: 18px !important; }
+html.larger-text *[style*="font-size: 17px"] { font-size: 19px !important; }
+html.larger-text *[style*="font-size: 18px"] { font-size: 21px !important; }
+html.larger-text *[style*="font-size: 20px"] { font-size: 23px !important; }
+html.larger-text *[style*="font-size: 22px"] { font-size: 25px !important; }
+html.larger-text *[style*="font-size: 24px"] { font-size: 27px !important; }
+html.larger-text *[style*="font-size: 28px"] { font-size: 32px !important; }
+html.larger-text *[style*="font-size: 32px"] { font-size: 36px !important; }
+
+/* --------------------------------------------------------------------------
+   HIGH CONTRAST
+   Improves contrast of muted-color text and structural backgrounds.
+   Status colors (green #16a34a, red #dc2626, amber #d97706) are preserved
+   via their background chips — text within those going to near-black
+   actually improves their contrast rather than hurting it.
+   -------------------------------------------------------------------------- */
+
+/* Lift page background to pure white */
+html.high-contrast body {
+  background-color: #ffffff !important;
+}
+
+/* Darken muted/secondary text elements to near-black */
+html.high-contrast p,
+html.high-contrast h1,
+html.high-contrast h2,
+html.high-contrast h3,
+html.high-contrast h4,
+html.high-contrast h5,
+html.high-contrast h6,
+html.high-contrast span,
+html.high-contrast label,
+html.high-contrast li,
+html.high-contrast option {
+  color: #000000 !important;
+}
+
+/* Inputs: darker text + stronger border */
+html.high-contrast input,
+html.high-contrast textarea,
+html.high-contrast select {
+  color: #000000 !important;
+  border-color: #374151 !important;
+  background-color: #ffffff !important;
+}
+
+/* Anchors: use a deeper blue that clears WCAG AA on white */
+html.high-contrast a {
+  color: #1d4ed8 !important;
+  text-decoration: underline;
+}
+
+/* Strong, universally visible focus ring for keyboard users */
+html.high-contrast *:focus-visible {
+  outline: 3px solid #000000 !important;
+  outline-offset: 2px !important;
+  border-radius: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   BOTH SETTINGS ACTIVE — widen focus ring slightly when text is larger
+   -------------------------------------------------------------------------- */
+html.larger-text.high-contrast *:focus-visible {
+  outline-width: 4px !important;
+}

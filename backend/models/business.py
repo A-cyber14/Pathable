@@ -13,7 +13,9 @@ class Business(BaseModel):
     entrance_width_rating: Optional[str]  = None  # "narrow", "standard", "wide"
     accessible_restrooms:  Optional[bool] = None
     elevator:              Optional[bool] = None
-    auto_doors:            Optional[bool] = None
+    auto_doors:                   Optional[bool] = None
+    wheelchair_accessible_tables: Optional[bool] = None
+    handrails_available:          Optional[bool] = None
     community_score:       Optional[float] = None   # avg star rating from reviews
     review_count:          Optional[int]   = None   # number of approved reviews
     accessibility_score:   Optional[int]   = None   # computed at read time, not stored
@@ -31,7 +33,9 @@ class BusinessSummary(BaseModel):
     accessible_parking: bool
     accessible_restrooms:  Optional[bool] = None
     elevator:              Optional[bool] = None
-    auto_doors:            Optional[bool] = None
+    auto_doors:                   Optional[bool] = None
+    wheelchair_accessible_tables: Optional[bool] = None
+    handrails_available:          Optional[bool] = None
     community_score:       Optional[float] = None   # avg star rating from reviews
     review_count:          Optional[int]   = None   # number of approved reviews
     accessibility_score:   Optional[int]   = None   # computed at read time, not stored
