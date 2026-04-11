@@ -4,6 +4,7 @@ from typing import Optional
 from models.business import Business, BusinessSummary
 from services.firebase import db, get_contributor_uid
 from services.scoring import calculate_accessibility_score
+from services.stats import recalculate_business_stats
 from services.maps import get_maps_client
 from datetime import datetime, timezone
 import firebase_admin.auth as firebase_auth
@@ -366,6 +367,8 @@ def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = H
         "createdAt":  now,
     })
 
+    recalculate_business_stats(business_id)
+
     return {"message": "Media submitted and is now visible on the business page"}
 
 
@@ -476,7 +479,76 @@ def submit_features(business_id: str, body: FeaturesSubmission, authorization: s
         "createdAt":            datetime.now(timezone.utc).isoformat(),
     })
 
+    recalculate_business_stats(business_id)
+
     return {"message": "Features submitted for review"}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/businesses/{id}/issue-reports
+# Structured accessibility issue report (pending review — does NOT auto-overwrite data).
+# Must be registered BEFORE /{business_id} to avoid route shadowing.
+# ---------------------------------------------------------------------------
+
+class IssueReportRequest(BaseModel):
+    feature:     str
+    issue_type:  str
+    tags:        list[str] = []
+    description: str
+    photo_urls:  list[str]
+
+
+@router.post("/{business_id}/issue-reports", status_code=201)
+def submit_issue_report(business_id: str, body: IssueReportRequest, authorization: str = Header(...)):
+    uid = get_uid(authorization)
+
+    if not db.collection(COLLECTION).document(business_id).get().exists:
+        raise HTTPException(status_code=404, detail=f"Business '{business_id}' not found")
+
+    if not body.description.strip():
+        raise HTTPException(status_code=422, detail="Description is required")
+
+    if not body.photo_urls:
+        raise HTTPException(status_code=422, detail="At least one photo is required")
+
+    if len(body.photo_urls) > 3:
+        raise HTTPException(status_code=422, detail="Maximum 3 photos allowed")
+
+    db.collection("issue_reports").add({
+        "businessId": business_id,
+        "userId":     uid,
+        "feature":    body.feature,
+        "issueType":  body.issue_type,
+        "tags":       body.tags,
+        "description": body.description.strip(),
+        "photoUrls":  body.photo_urls,
+        "status":     "pending_review",
+        "createdAt":  datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {"message": "Issue report submitted for review"}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/businesses/{id}/issue-reports/pending
+# Public endpoint — returns whether there are any pending issue reports.
+# Must be registered BEFORE /{business_id}/issue-reports to avoid shadowing.
+# ---------------------------------------------------------------------------
+
+@router.get("/{business_id}/issue-reports/pending")
+def get_pending_issue_reports(business_id: str):
+    if not db.collection(COLLECTION).document(business_id).get().exists:
+        raise HTTPException(status_code=404, detail=f"Business '{business_id}' not found")
+
+    docs = (
+        db.collection("issue_reports")
+        .where("businessId", "==", business_id)
+        .where("status", "==", "pending_review")
+        .stream()
+    )
+
+    count = sum(1 for _ in docs)
+    return {"has_pending": count > 0, "count": count}
 
 
 # ---------------------------------------------------------------------------

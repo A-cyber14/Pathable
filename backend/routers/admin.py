@@ -66,9 +66,9 @@ def delete_review(review_id: str, authorization: str = Header(...)):
     business_id = doc.to_dict().get("business_id")
     ref.delete()
 
-    # Recalculate community_score and review_count with the deleted review removed
+    # Recalculate all community stats with the deleted review removed
     if business_id and db.collection("businesses").document(business_id).get().exists:
-        from routers.reviews import _recalculate_community_stats
-        _recalculate_community_stats(business_id)
+        from services.stats import recalculate_business_stats
+        recalculate_business_stats(business_id)
 
     return {"message": f"Review '{review_id}' deleted"}

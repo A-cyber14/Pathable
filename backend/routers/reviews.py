@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from services.firebase import db
 from services.scoring import calculate_accessibility_score
+from services.stats import recalculate_business_stats
 from models.business import Business
 import firebase_admin.auth as firebase_auth
 
@@ -67,33 +68,6 @@ class ReviewSubmission(BaseModel):
         return v
 
 
-# ---------------------------------------------------------------------------
-# Internal helper — recalculate and persist community_score + review_count
-# Called after every review insert or delete.
-# ---------------------------------------------------------------------------
-
-def _recalculate_community_stats(business_id: str) -> None:
-    docs = (
-        db.collection(REVIEWS_COLLECTION)
-        .where("business_id", "==", business_id)
-        .where("status",      "==", "approved")
-        .stream()
-    )
-
-    ratings = [
-        r.to_dict().get("rating")
-        for r in docs
-        if isinstance(r.to_dict().get("rating"), int)
-    ]
-
-    review_count   = len(ratings)
-    community_score = round(sum(ratings) / review_count, 1) if review_count > 0 else None
-
-    db.collection(BUSINESSES_COLLECTION).document(business_id).update({
-        "community_score": community_score,
-        "review_count":    review_count,
-    })
-
 
 # ---------------------------------------------------------------------------
 # POST /api/reviews
@@ -126,7 +100,7 @@ def submit_review(review: ReviewSubmission, authorization: str = Header(...)):
         "submitted_at":          datetime.now(timezone.utc).isoformat(),
     })
 
-    _recalculate_community_stats(review.business_id)
+    recalculate_business_stats(review.business_id)
 
     return {
         "message":     "Review submitted successfully",

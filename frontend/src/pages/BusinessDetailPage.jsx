@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
-import { getBusiness, addBookmark, removeBookmark, getBookmarks, getProfile, getBusinessPhotos, submitPhoto, submitFeatures, submitReview } from "../services/api";
+import { getBusiness, addBookmark, removeBookmark, getBookmarks, getProfile, getBusinessPhotos, submitPhoto, submitFeatures, submitReview, getPendingIssueReports } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import CommunityRating from "../components/CommunityRating";
 import StarRating from "../components/StarRating";
+import ReportIssueModal from "../components/ReportIssueModal";
 
 const PHOTO_SLOTS = [
   { label: "Entrance",          key: "entrance", icon: "🚪" },
@@ -247,12 +248,14 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError, onA
 
 function calculatePathableScore(business, userPreferences = []) {
   const featureChecks = [
-    { key: "wheelchair_accessible", label: "Ramps / Wheelchair Access", icon: "♿", weight: 15 },
-    { key: "accessible_parking",    label: "Accessible Parking",         icon: "🚗", weight: 10 },
-    { key: "entrance_width",        label: "Accessible Entrance Width",  icon: "🚪", weight: 10 },
-    { key: "accessible_restrooms",  label: "Accessible Restrooms",       icon: "🚻", weight: 8  },
-    { key: "elevator",              label: "Elevator",                   icon: "🛗", weight: 4  },
-    { key: "auto_doors",            label: "Automatic Doors",            icon: "🔄", weight: 3  },
+    { key: "wheelchair_accessible",        label: "Ramps / Wheelchair Access",    icon: "♿", weight: 15 },
+    { key: "accessible_parking",           label: "Accessible Parking",           icon: "🚗", weight: 10 },
+    { key: "entrance_width",               label: "Accessible Entrance Width",    icon: "🚪", weight: 10 },
+    { key: "accessible_restrooms",         label: "Accessible Restrooms",         icon: "🚻", weight: 8  },
+    { key: "elevator",                     label: "Elevator",                     icon: "🛗", weight: 4  },
+    { key: "auto_doors",                   label: "Automatic Doors",              icon: "🔄", weight: 3  },
+    { key: "wheelchair_accessible_tables", label: "Wheelchair-Accessible Tables", icon: "🪑", weight: 0  },
+    { key: "handrails_available",          label: "Handrails Available",          icon: "🪜", weight: 0  },
   ];
 
   const features = featureChecks.map((f) => {
@@ -268,11 +271,14 @@ function calculatePathableScore(business, userPreferences = []) {
   const featuresScore = features.reduce((sum, f) => sum + (f.present ? f.weight : 0), 0);
 
   const prefToFeature = {
-    accessible_parking:   "accessible_parking",
-    wide_entrances:       "entrance_width",
-    accessible_restrooms: "accessible_restrooms",
-    elevators:            "elevator",
-    automatic_doors:      "auto_doors",
+    wheelchair_accessible:        "wheelchair_accessible",
+    accessible_parking:           "accessible_parking",
+    wide_entrances:               "entrance_width",
+    accessible_restrooms:         "accessible_restrooms",
+    elevators:                    "elevator",
+    automatic_doors:              "auto_doors",
+    wheelchair_accessible_tables: "wheelchair_accessible_tables",
+    handrails_available:          "handrails_available",
   };
 
   let matchedCount = 0;
@@ -802,7 +808,7 @@ function QuickSummary({ business, onContribute }) {
 function buildConfidenceData(business, allPhotos) {
   const photoCount = allPhotos.filter((p) => p.mediaType !== "video").length;
   const videoCount = allPhotos.filter((p) => p.mediaType === "video").length;
-  const contributors = business.review_count || 0;
+  const contributors = business.contributors_count ?? business.review_count ?? 0;
   const isVerified = !!(business.pathable_verified || business.verified);
   const score = calculatePathableScore(business);
   const overallLevel = score.confidenceLabel.toLowerCase(); // "low" | "medium" | "high"
@@ -835,7 +841,7 @@ function buildConfidenceData(business, allPhotos) {
   };
 
   return {
-    lastUpdatedDate: business.last_updated || business.updated_at || null,
+    lastUpdatedDate: business.last_updated || null,
     totalContributors: contributors,
     photoCount,
     videoCount,
@@ -1311,6 +1317,8 @@ export default function BusinessDetailPage() {
   const [bookmarked,       setBookmarked]       = useState(false);
   const [bookmarking,      setBookmarking]      = useState(false);
   const [showContribute,   setShowContribute]   = useState(null); // null | { tab?, category? }
+  const [showReportIssue,  setShowReportIssue]  = useState(false);
+  const [hasPendingReport, setHasPendingReport] = useState(false);
   const [ratingRefreshKey, setRatingRefreshKey] = useState(0);
   const [userPrefs,        setUserPrefs]        = useState([]);
   const [allPhotos,        setAllPhotos]        = useState([]);
@@ -1343,6 +1351,13 @@ export default function BusinessDetailPage() {
       .then((bookmarks) => {
         if (bookmarks.some((b) => b.id === id)) setBookmarked(true);
       })
+      .catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    getPendingIssueReports(id)
+      .then((data) => setHasPendingReport(data.has_pending))
       .catch(() => {});
   }, [id]);
 
@@ -1403,6 +1418,16 @@ export default function BusinessDetailPage() {
         </div>
 
         <p style={{ margin: "0 0 20px", fontSize: "14px", color: "#6b7280" }}>📍 {business.address}</p>
+
+        {/* Pending issue report banner */}
+        {hasPendingReport && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "10px", padding: "10px 14px", marginBottom: "16px" }}>
+            <span style={{ fontSize: "15px", flexShrink: 0, marginTop: "1px" }}>⚠️</span>
+            <p style={{ margin: 0, fontSize: "13px", color: "#92400e", lineHeight: "1.5" }}>
+              An issue has been reported for this location and is awaiting review.
+            </p>
+          </div>
+        )}
 
         {/* Community rating — near the top so users see social proof immediately */}
         <CommunityRating key={ratingRefreshKey} businessId={id} />
@@ -1483,102 +1508,148 @@ export default function BusinessDetailPage() {
           <p style={{ margin: "0 0 28px", fontSize: "15px", color: "#374151", lineHeight: "1.6" }}>{business.description}</p>
         )}
 
-        {/* Accessibility Details — unified block */}
+        {/* Accessibility Details — grouped by user preferences */}
         {(() => {
           const confidenceData = buildConfidenceData(business, allPhotos);
           const attrs = confidenceData.attributes;
+
+          // Map profile preference values → business feature display keys
+          const PREF_TO_FEATURE_KEY = {
+            wheelchair_accessible:        "wheelchair_accessible",
+            accessible_parking:           "accessible_parking",
+            wide_entrances:               "entrance_width_rating",
+            accessible_restrooms:         "accessible_restrooms",
+            elevators:                    "elevator",
+            automatic_doors:              "auto_doors",
+            wheelchair_accessible_tables: "wheelchair_accessible_tables",
+            handrails_available:          "handrails_available",
+          };
+          const userFeatureKeys = new Set(userPrefs.map((p) => PREF_TO_FEATURE_KEY[p]).filter(Boolean));
+
+          // All feature display items in desired order
+          const ALL_ITEMS = [
+            { key: "wheelchair_accessible",        label: "Ramps / Wheelchair",             value: business.wheelchair_accessible,        note: business.wheelchair_accessible === true ? "Accessible" : business.wheelchair_accessible === false ? "Not accessible" : null,                                                                  conf: attrs.wheelchair_accessible        },
+            { key: "accessible_parking",           label: "Accessible Parking",             value: business.accessible_parking,           note: business.accessible_parking === true ? "Confirmed available" : business.accessible_parking === false ? "Reported unavailable" : null,                                                          conf: attrs.accessible_parking           },
+            { key: "entrance_width_rating",        label: null,                             value: null,                                  note: null,                                                                                                                                                                                            conf: null                               },
+            { key: "accessible_restrooms",         label: "Accessible Restrooms",           value: business.accessible_restrooms,         note: business.accessible_restrooms === true ? "Confirmed accessible" : business.accessible_restrooms === false ? "Reported inaccessible" : null,                                                    conf: attrs.accessible_restrooms         },
+            { key: "elevator",                     label: "Elevator",                       value: business.elevator,                     note: business.elevator === true ? "Present" : business.elevator === false ? "Not present" : null,                                                                                                    conf: attrs.elevator                     },
+            { key: "auto_doors",                   label: "Automatic Doors",                value: business.auto_doors,                   note: business.auto_doors === true ? "Present" : business.auto_doors === false ? "Not present" : null,                                                                                                conf: attrs.auto_doors                   },
+            { key: "wheelchair_accessible_tables", label: "Wheelchair-accessible tables",   value: business.wheelchair_accessible_tables, note: business.wheelchair_accessible_tables === true ? "Available" : business.wheelchair_accessible_tables === false ? "Not available" : null,                                                       conf: attrs.wheelchair_accessible_tables },
+            { key: "handrails_available",          label: "Handrails available",            value: business.handrails_available,          note: business.handrails_available === true ? "Present" : business.handrails_available === false ? "Not present" : null,                                                                              conf: attrs.handrails_available          },
+          ];
+
+          // Renders one feature item — preserves the exact same CheckRow + Entrance Width UI
+          const renderItem = (item) => {
+            if (item.key === "entrance_width_rating") {
+              const r = business.entrance_width_rating;
+              const isUnknown = r == null;
+              const c = attrs.entrance_width_rating;
+              const chips = !isUnknown && c
+                ? [
+                    c.confirmations > 0 && `Confirmed by ${c.confirmations} contributor${c.confirmations !== 1 ? "s" : ""}`,
+                    c.hasPhotoEvidence && "Photo evidence available",
+                  ].filter(Boolean)
+                : [];
+              return (
+                <div key="entrance_width_rating" style={{ padding: "11px 0" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>Entrance Width</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {isUnknown ? (
+                        <button onClick={() => setShowContribute({})} style={{ fontSize: "11px", color: "#b45309", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: "600" }}>
+                          Contribute info →
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: "13px", color: "#374151", fontWeight: "600" }}>
+                          {r.charAt(0).toUpperCase() + r.slice(1)}
+                          {" — "}
+                          {r === "wide" ? "Fully accessible" : r === "standard" ? '36" minimum' : "May be difficult"}
+                        </span>
+                      )}
+                      <span style={{
+                        width: "22px", height: "22px", borderRadius: "50%",
+                        backgroundColor: isUnknown ? "#fffbeb" : r !== "narrow" ? "#f0fdf4" : "#fef2f2",
+                        border: `1px solid ${isUnknown ? "#fde68a" : r !== "narrow" ? "#bbf7d0" : "#fecaca"}`,
+                        color: isUnknown ? "#b45309" : r !== "narrow" ? "#16a34a" : "#dc2626",
+                        fontSize: isUnknown ? "14px" : "13px", fontWeight: "700",
+                        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                      }}>
+                        {isUnknown ? "?" : r !== "narrow" ? "✓" : "✗"}
+                      </span>
+                    </div>
+                  </div>
+                  {isUnknown ? (
+                    <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ fontSize: "11px", color: "#9ca3af" }}>Not yet confirmed</span>
+                      <button onClick={() => setShowContribute({})} style={{ fontSize: "11px", color: "#b45309", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: "600" }}>
+                        · Help confirm
+                      </button>
+                    </div>
+                  ) : chips.length > 0 ? (
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "5px" }}>
+                      {chips.map((chip, i) => (
+                        <span key={i} style={{ fontSize: "11px", color: "#4b5563", backgroundColor: "#f3f4f6", border: "1px solid #e5e7eb", padding: "1px 7px", borderRadius: "4px", lineHeight: "1.6" }}>{chip}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: "4px" }}>
+                      <span style={{ fontSize: "11px", color: "#9ca3af", fontStyle: "italic" }}>Not enough data yet</span>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return <CheckRow key={item.key} label={item.label} value={item.value} note={item.note} confidence={item.conf} onContribute={() => setShowContribute({})} />;
+          };
+
+          const myItems    = ALL_ITEMS.filter((i) => userFeatureKeys.has(i.key));
+          const otherItems = ALL_ITEMS.filter((i) => !userFeatureKeys.has(i.key));
+          const hasGroups  = myItems.length > 0;
+
+          const subHeadingStyle = {
+            fontSize: "11px", fontWeight: "700", color: "#6b7280",
+            textTransform: "uppercase", letterSpacing: "0.5px",
+            padding: "8px 0 4px",
+          };
+
           return (
             <>
-              <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "14px", padding: "20px", marginBottom: "28px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-                  <span style={{ fontSize: "16px" }}>♿</span>
-                  <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>Accessibility Details</h2>
-                </div>
-                <CheckRow label="Accessible Parking"   value={business.accessible_parking}   note={business.accessible_parking === true ? "Confirmed available" : business.accessible_parking === false ? "Reported unavailable" : null}  confidence={attrs.accessible_parking}   onContribute={() => setShowContribute({})} />
-                <CheckRow label="Accessible Restrooms" value={business.accessible_restrooms}  note={business.accessible_restrooms === true ? "Confirmed accessible" : business.accessible_restrooms === false ? "Reported inaccessible" : null} confidence={attrs.accessible_restrooms}  onContribute={() => setShowContribute({})} />
-                <CheckRow label="Elevator"             value={business.elevator}              note={business.elevator === true ? "Present" : business.elevator === false ? "Not present" : null}                                                confidence={attrs.elevator}              onContribute={() => setShowContribute({})} />
-                <CheckRow label="Ramps / Wheelchair"   value={business.wheelchair_accessible} note={business.wheelchair_accessible === true ? "Accessible" : business.wheelchair_accessible === false ? "Not accessible" : null}               confidence={attrs.wheelchair_accessible} onContribute={() => setShowContribute({})} />
-                <CheckRow label="Automatic Doors"            value={business.auto_doors}                       note={business.auto_doors === true ? "Present" : business.auto_doors === false ? "Not present" : null}                                                         confidence={attrs.auto_doors}                       onContribute={() => setShowContribute({})} />
-                <CheckRow label="Wheelchair-accessible tables" value={business.wheelchair_accessible_tables}  note={business.wheelchair_accessible_tables === true ? "Available" : business.wheelchair_accessible_tables === false ? "Not available" : null}          confidence={attrs.wheelchair_accessible_tables}  onContribute={() => setShowContribute({})} />
-                <CheckRow label="Handrails available"          value={business.handrails_available}           note={business.handrails_available === true ? "Present" : business.handrails_available === false ? "Not present" : null}                               confidence={attrs.handrails_available}           onContribute={() => setShowContribute({})} />
-
-                {/* Entrance Width — non-boolean, handled inline to support tri-state amber */}
-                {(() => {
-                  const r = business.entrance_width_rating;
-                  const isUnknown = r == null;
-                  const c = attrs.entrance_width_rating;
-                  const chips = !isUnknown && c
-                    ? [
-                        c.confirmations > 0 && `Confirmed by ${c.confirmations} contributor${c.confirmations !== 1 ? "s" : ""}`,
-                        c.hasPhotoEvidence && "Photo evidence available",
-                      ].filter(Boolean)
-                    : [];
-                  return (
-                    <div style={{ padding: "11px 0" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>Entrance Width</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          {isUnknown ? (
-                            <button
-                              onClick={() => setShowContribute({})}
-                              style={{ fontSize: "11px", color: "#b45309", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: "600" }}
-                            >
-                              Contribute info →
-                            </button>
-                          ) : (
-                            <span style={{ fontSize: "13px", color: "#374151", fontWeight: "600" }}>
-                              {r.charAt(0).toUpperCase() + r.slice(1)}
-                              {" — "}
-                              {r === "wide" ? "Fully accessible" : r === "standard" ? '36" minimum' : "May be difficult"}
-                            </span>
-                          )}
-                          <span style={{
-                            width: "22px", height: "22px", borderRadius: "50%",
-                            backgroundColor: isUnknown ? "#fffbeb" : r !== "narrow" ? "#f0fdf4" : "#fef2f2",
-                            border: `1px solid ${isUnknown ? "#fde68a" : r !== "narrow" ? "#bbf7d0" : "#fecaca"}`,
-                            color: isUnknown ? "#b45309" : r !== "narrow" ? "#16a34a" : "#dc2626",
-                            fontSize: isUnknown ? "14px" : "13px", fontWeight: "700",
-                            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                          }}>
-                            {isUnknown ? "?" : r !== "narrow" ? "✓" : "✗"}
-                          </span>
-                        </div>
-                      </div>
-                      {isUnknown ? (
-                        <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <span style={{ fontSize: "11px", color: "#9ca3af" }}>Not yet confirmed</span>
-                          <button onClick={() => setShowContribute({})} style={{ fontSize: "11px", color: "#b45309", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: "600" }}>
-                            · Help confirm
-                          </button>
-                        </div>
-                      ) : chips.length > 0 ? (
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "5px" }}>
-                          {chips.map((chip, i) => (
-                            <span key={i} style={{ fontSize: "11px", color: "#4b5563", backgroundColor: "#f3f4f6", border: "1px solid #e5e7eb", padding: "1px 7px", borderRadius: "4px", lineHeight: "1.6" }}>{chip}</span>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ marginTop: "4px" }}>
-                          <span style={{ fontSize: "11px", color: "#9ca3af", fontStyle: "italic" }}>Not enough data yet</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+              {/* Section title — matches Photos heading style */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <span style={{ fontSize: "15px" }}>♿</span>
+                <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>Accessibility Details</h2>
               </div>
+
+              {/* My Accessibility Needs card */}
+              {hasGroups && (
+                <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "14px", padding: "16px 20px", marginBottom: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>My Accessibility Needs</div>
+                  {myItems.map(renderItem)}
+                </div>
+              )}
+
+              {/* Other Features card */}
+              {otherItems.length > 0 && (
+                <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "14px", padding: "16px 20px", marginBottom: "28px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  {hasGroups && (
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Other Features</div>
+                  )}
+                  {otherItems.map(renderItem)}
+                </div>
+              )}
 
               <DataConfidenceSection confidenceData={confidenceData} onContribute={() => setShowContribute({})} />
             </>
           );
         })()}
 
-        {/* Action bar — Contribute (primary) + Bookmark (outline) */}
+        {/* Action bar — Report an Issue (primary) + Bookmark (outline) */}
         <div style={{ display: "flex", gap: "10px" }}>
           <button
-            onClick={() => setShowContribute({})}
-            style={{ flex: 2, padding: "13px 8px", backgroundColor: "#2563eb", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: "600", cursor: "pointer", boxShadow: "0 1px 3px rgba(37,99,235,0.3)" }}
+            onClick={() => setShowReportIssue(true)}
+            style={{ flex: 2, padding: "13px 8px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: "600", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.15)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
           >
-            Contribute
+            <span style={{ fontSize: "15px" }}>⚑</span> Report an Issue
           </button>
           <button
             onClick={handleBookmark}
@@ -1617,6 +1688,14 @@ export default function BusinessDetailPage() {
           onReviewSuccess={() => setRatingRefreshKey((k) => k + 1)}
           initialTab={showContribute.tab || "review"}
           initialCategory={showContribute.category || "entrance"}
+        />
+      )}
+
+      {showReportIssue && (
+        <ReportIssueModal
+          businessId={id}
+          onClose={() => setShowReportIssue(false)}
+          onSuccess={() => setHasPendingReport(true)}
         />
       )}
     </div>

@@ -18,6 +18,8 @@ class Business(BaseModel):
     handrails_available:          Optional[bool] = None
     community_score:       Optional[float] = None   # avg star rating from reviews
     review_count:          Optional[int]   = None   # number of approved reviews
+    contributors_count:    Optional[int]   = None   # unique users who contributed reviews or photos
+    last_updated:          Optional[str]   = None   # ISO-8601 UTC, set on any contribution
     accessibility_score:   Optional[int]   = None   # computed at read time, not stored
     photos: list[str] = []
 
@@ -38,4 +40,6 @@ class BusinessSummary(BaseModel):
     handrails_available:          Optional[bool] = None
     community_score:       Optional[float] = None   # avg star rating from reviews
     review_count:          Optional[int]   = None   # number of approved reviews
+    contributors_count:    Optional[int]   = None   # unique users who contributed reviews or photos
+    last_updated:          Optional[str]   = None   # ISO-8601 UTC, set on any contribution
     accessibility_score:   Optional[int]   = None   # computed at read time, not stored

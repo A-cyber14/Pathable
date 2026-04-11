@@ -14,11 +14,14 @@ const DISABILITY_OPTIONS = [
 ];
 
 const FEATURE_OPTIONS = [
-  { value: "accessible_parking",   label: "Accessible Parking",   desc: "Designated parking spaces close to entrance" },
-  { value: "wide_entrances",       label: "Wide Entrances",       desc: "Doors wide enough for wheelchair access" },
-  { value: "elevators",            label: "Elevators",            desc: "Accessible elevators for multi-floor buildings" },
-  { value: "accessible_restrooms", label: "Accessible Restrooms", desc: "Wheelchair-accessible restroom facilities" },
-  { value: "automatic_doors",      label: "Automatic Doors",      desc: "Hands-free entry and exit" },
+  { value: "wheelchair_accessible",        label: "Wheelchair Accessible",        desc: "Ramps or step-free access throughout" },
+  { value: "accessible_parking",           label: "Accessible Parking",           desc: "Designated parking spaces close to entrance" },
+  { value: "wide_entrances",               label: "Wide Entrances",               desc: "Doors wide enough for wheelchair access" },
+  { value: "accessible_restrooms",         label: "Accessible Restrooms",         desc: "Wheelchair-accessible restroom facilities" },
+  { value: "elevators",                    label: "Elevators",                    desc: "Accessible elevators for multi-floor buildings" },
+  { value: "automatic_doors",              label: "Automatic Doors",              desc: "Hands-free entry and exit" },
+  { value: "wheelchair_accessible_tables", label: "Wheelchair-Accessible Tables", desc: "Tables with adequate clearance for wheelchairs" },
+  { value: "handrails_available",          label: "Handrails",                    desc: "Handrails on stairs, ramps, or walkways" },
 ];
 
 function ToggleRow({ id, label, description, checked, onChange }) {
