@@ -16,6 +16,7 @@ class Business(BaseModel):
     auto_doors:                   Optional[bool] = None
     wheelchair_accessible_tables: Optional[bool] = None
     handrails_available:          Optional[bool] = None
+    description:           Optional[str]   = None   # business owner bio / description
     community_score:       Optional[float] = None   # avg star rating from reviews
     review_count:          Optional[int]   = None   # number of approved reviews
     contributors_count:    Optional[int]   = None   # unique users who contributed reviews or photos
