@@ -68,3 +68,32 @@ export async function submitPhoto(id, data)         { return api.post(`/api/busi
 export async function submitFeatures(id, data)      { return api.post(`/api/businesses/${id}/features`, data); }
 export async function submitIssueReport(id, data)   { return api.post(`/api/businesses/${id}/issue-reports`, data); }
 export async function getPendingIssueReports(id)    { return api.get(`/api/businesses/${id}/issue-reports/pending`); }
+
+// ---------------------------------------------------------------------------
+// Onboarding — account type + business setup
+// ---------------------------------------------------------------------------
+export async function setupBusiness(data)          { return api.post("/api/users/me/setup-business", data); }
+
+// ---------------------------------------------------------------------------
+// Business Dashboard — business-owner-only endpoints
+// ---------------------------------------------------------------------------
+export async function getDashboardBusiness()           { return api.get("/api/dashboard/my-business"); }
+export async function updateDashboardBusiness(data)    { return api.put("/api/dashboard/my-business", data); }
+export async function getDashboardReviews()            { return api.get("/api/dashboard/my-business/reviews"); }
+export async function getDashboardAnalytics()          { return api.get("/api/dashboard/my-business/analytics"); }
+export async function respondToReview(id, data)        { return api.post(`/api/reviews/${id}/response`, data); }
+
+// ---------------------------------------------------------------------------
+// Admin — admin-only endpoints
+// ---------------------------------------------------------------------------
+export async function getAdminStats()                              { return api.get("/api/admin/stats"); }
+export async function getAdminBusinesses()                         { return api.get("/api/admin/businesses"); }
+export async function updateAdminBusiness(id, data)                { return api.patch(`/api/admin/businesses/${id}`, data); }
+export async function deleteAdminBusiness(id)                      { return api.delete(`/api/admin/businesses/${id}`); }
+export async function getAdminUsers()                              { return api.get("/api/admin/users"); }
+export async function deleteAdminUser(uid)                         { return api.delete(`/api/admin/users/${uid}`); }
+export async function unlinkBusinessUser(uid)                      { return api.patch(`/api/admin/users/${uid}/unlink-business`); }
+export async function getAdminReviews()                            { return api.get("/api/admin/reviews"); }
+export async function deleteAdminReview(id)                        { return api.delete(`/api/admin/reviews/${id}`); }
+export async function getAdminMedia()                              { return api.get("/api/admin/media"); }
+export async function deleteAdminMedia(bizId, photoId)             { return api.delete(`/api/admin/media/${bizId}/${photoId}`); }

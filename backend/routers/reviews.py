@@ -106,3 +106,60 @@ def submit_review(review: ReviewSubmission, authorization: str = Header(...)):
         "message":     "Review submitted successfully",
         "business_id": review.business_id,
     }
+
+
+# ---------------------------------------------------------------------------
+# POST /api/reviews/{review_id}/response
+# Allows a business owner to add a single response to a review.
+# The user must have role="business" and their businessId must match
+# the review's business_id.
+# ---------------------------------------------------------------------------
+
+class ReviewResponseBody(BaseModel):
+    message: str
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, v):
+        if not v or len(v.strip()) < 1:
+            raise ValueError("Response message cannot be empty")
+        return v.strip()
+
+
+@router.post("/{review_id}/response", status_code=200)
+def respond_to_review(
+    review_id: str,
+    body: ReviewResponseBody,
+    authorization: str = Header(...),
+):
+    uid = get_uid(authorization)
+
+    ref = db.collection(REVIEWS_COLLECTION).document(review_id)
+    doc = ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail=f"Review '{review_id}' not found")
+
+    review_data = doc.to_dict()
+    business_id = review_data.get("business_id")
+
+    # Verify the requesting user owns this business.
+    # Accepts accountType="business" (new onboarding) or role="business" (legacy admin assignment).
+    user_doc = db.collection("users").document(uid).get()
+    if not user_doc.exists:
+        raise HTTPException(status_code=403, detail="You don't own this business")
+    user_data   = user_doc.to_dict()
+    is_business = (
+        user_data.get("accountType") == "business"
+        or user_data.get("role") == "business"
+    )
+    if not is_business or user_data.get("businessId") != business_id:
+        raise HTTPException(status_code=403, detail="You don't own this business")
+
+    ref.update({
+        "response": {
+            "message":   body.message,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+    })
+
+    return {"message": "Response added successfully"}

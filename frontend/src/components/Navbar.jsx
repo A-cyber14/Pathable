@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useLocation, Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 // ---------------------------------------------------------------------------
-// SVG Icon components (all use currentColor so active/hover states work)
+// SVG icons — all use currentColor so active/hover tinting works automatically
 // ---------------------------------------------------------------------------
+
 function PersonIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -30,21 +32,56 @@ function BookmarkSVGIcon() {
   );
 }
 
+function ShieldIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Order: Profile → Map → Bookmarks  (as specified)
+// Nav item sets
+// Regular users:  Profile → Map → Bookmarks
+// Business users: Business Profile → Map  (minimal, focused)
+// Admin users:    Admin → Map
 // ---------------------------------------------------------------------------
-const NAV_ITEMS = [
-  { path: "/profile",   icon: <PersonIcon />,      label: "Profile"   },
-  { path: "/",          icon: <MapPinIcon />,       label: "Map"       },
-  { path: "/bookmarks", icon: <BookmarkSVGIcon />,  label: "Bookmarks" },
+
+const USER_NAV_ITEMS = [
+  { path: "/profile",          icon: <PersonIcon />,       label: "Profile"          },
+  { path: "/",                 icon: <MapPinIcon />,        label: "Map"              },
+  { path: "/bookmarks",        icon: <BookmarkSVGIcon />,   label: "Bookmarks"        },
 ];
+
+const BUSINESS_NAV_ITEMS = [
+  { path: "/business-profile", icon: <PersonIcon />,        label: "Business Profile" },
+  { path: "/",                 icon: <MapPinIcon />,         label: "Map"              },
+];
+
+const ADMIN_NAV_ITEMS = [
+  { path: "/admin",            icon: <ShieldIcon />,         label: "Admin"            },
+  { path: "/",                 icon: <MapPinIcon />,         label: "Map"              },
+];
+
+// Pages where the sidebar should be hidden (sign-in + onboarding).
+const HIDDEN_PATHS = ["/login", "/account-type", "/business-setup"];
+
+// ---------------------------------------------------------------------------
+// Navbar
+// ---------------------------------------------------------------------------
 
 export default function Navbar() {
   const location = useLocation();
   const [hovered, setHovered] = useState(null);
+  const { userProfile } = useAuth();
 
-  // No sidebar on the login page
-  if (location.pathname === "/login") return null;
+  if (HIDDEN_PATHS.includes(location.pathname)) return null;
+
+  const accountType = userProfile?.accountType;
+  const navItems =
+    accountType === "admin"    ? ADMIN_NAV_ITEMS    :
+    accountType === "business" ? BUSINESS_NAV_ITEMS :
+    USER_NAV_ITEMS;
 
   const isActive = (path) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
@@ -65,10 +102,9 @@ export default function Navbar() {
         paddingTop:      "18px",
         paddingBottom:   "18px",
         zIndex:          100,
-        gap:             "0",
       }}
     >
-      {/* ── Logo — circular brand mark, NOT a navigation button ── */}
+      {/* Logo */}
       <div
         title="Pathable"
         style={{
@@ -89,9 +125,9 @@ export default function Navbar() {
         ♿
       </div>
 
-      {/* ── Nav items ── */}
+      {/* Nav items */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-        {NAV_ITEMS.map(({ path, icon, label }) => {
+        {navItems.map(({ path, icon, label }) => {
           const active = isActive(path);
           return (
             <Link

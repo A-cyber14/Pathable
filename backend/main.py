@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import businesses, reviews, users, admin
+from routers import businesses, reviews, users, admin, dashboard
 
 app = FastAPI(
     title="Pathable API",
@@ -28,6 +28,7 @@ app.include_router(businesses.router, prefix="/api/businesses", tags=["businesse
 app.include_router(reviews.router,   prefix="/api/reviews",    tags=["reviews"])
 app.include_router(users.router,     prefix="/api/users",      tags=["users"])
 app.include_router(admin.router,     prefix="/api/admin",      tags=["admin"])
+app.include_router(dashboard.router, prefix="/api/dashboard",  tags=["dashboard"])
 
 
 @app.get("/")
