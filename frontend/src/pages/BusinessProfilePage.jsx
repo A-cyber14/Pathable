@@ -530,7 +530,7 @@ export default function BusinessProfilePage() {
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           {[
             { icon: "💬", value: business.review_count ?? 0,       label: "Reviews"           },
-            { icon: "📷", value: business.photos_count ?? 0,       label: "Photos"            },
+            { icon: "📷", value: photos.length,                     label: "Photos"            },
             { icon: "👥", value: business.contributors_count ?? 0, label: "Contributors"      },
             { icon: "⚠️", value: awaitingResponse,                   label: "Awaiting Response" },
           ].map(({ icon, value, label }) => (

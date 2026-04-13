@@ -98,3 +98,4 @@ export async function getAdminReviews()                            { return api.
 export async function deleteAdminReview(id)                        { return api.delete(`/api/admin/reviews/${id}`); }
 export async function getAdminMedia()                              { return api.get("/api/admin/media"); }
 export async function deleteAdminMedia(bizId, photoId)             { return api.delete(`/api/admin/media/${bizId}/${photoId}`); }
+export async function cleanupOrphanedPhotos()                      { return api.post("/api/admin/cleanup-orphaned-photos"); }

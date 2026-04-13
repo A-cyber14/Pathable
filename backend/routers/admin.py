@@ -256,11 +256,103 @@ def delete_media(biz_id: str, photo_id: str, authorization: str = Header(...)):
           .collection("photos")
           .document(photo_id)
     )
-    if not ref.get().exists:
+    photo_doc = ref.get()
+    if not photo_doc.exists:
         raise HTTPException(status_code=404, detail="Photo not found")
 
+    photo_url = photo_doc.to_dict().get("photoUrl")
+
+    # 1. Remove from the photos subcollection (source of truth for display)
     ref.delete()
+
+    # 2. Remove matching contribution(s) so the audit trail stays in sync
+    if photo_url:
+        contrib_docs = (
+            db.collection("contributions")
+              .where("businessId", "==", biz_id)
+              .where("photoUrl",   "==", photo_url)
+              .where("type",       "==", "photo")
+              .stream()
+        )
+        for cdoc in contrib_docs:
+            cdoc.reference.delete()
+
+    # 3. Recompute stats (photo_count, contributors_count, etc.)
+    from services.stats import recalculate_business_stats
+    recalculate_business_stats(biz_id)
+
     return {"message": f"Photo '{photo_id}' deleted"}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/admin/cleanup-orphaned-photos
+# Scans every business's photos subcollection and removes any document whose
+# photoUrl returns a 4xx response (file was deleted from Storage without going
+# through the admin panel).  Also prunes matching contributions and recalculates
+# stats for every affected business.
+# ---------------------------------------------------------------------------
+
+@router.post("/cleanup-orphaned-photos", status_code=200)
+def cleanup_orphaned_photos(authorization: str = Header(...)):
+    require_admin(authorization)
+
+    import urllib.request
+    import urllib.error
+    from services.stats import recalculate_business_stats
+
+    removed: int = 0
+    businesses_affected: set = set()
+
+    for biz_doc in db.collection("businesses").stream():
+        biz_id = biz_doc.id
+        for photo_doc in (
+            db.collection("businesses")
+              .document(biz_id)
+              .collection("photos")
+              .stream()
+        ):
+            data      = photo_doc.to_dict()
+            photo_url = data.get("photoUrl", "")
+
+            # A doc with no URL is orphaned by definition
+            if not photo_url:
+                photo_doc.reference.delete()
+                removed += 1
+                businesses_affected.add(biz_id)
+                continue
+
+            broken = False
+            try:
+                req = urllib.request.Request(photo_url, method="HEAD")
+                urllib.request.urlopen(req, timeout=5)
+            except urllib.error.HTTPError as exc:
+                if exc.code >= 400:
+                    broken = True
+            except Exception:
+                # Network timeout, DNS error, etc. — don't delete speculatively
+                pass
+
+            if broken:
+                photo_doc.reference.delete()
+                # Remove matching contribution entry
+                for cdoc in (
+                    db.collection("contributions")
+                      .where("businessId", "==", biz_id)
+                      .where("photoUrl",   "==", photo_url)
+                      .where("type",       "==", "photo")
+                      .stream()
+                ):
+                    cdoc.reference.delete()
+                removed += 1
+                businesses_affected.add(biz_id)
+
+    for biz_id in businesses_affected:
+        recalculate_business_stats(biz_id)
+
+    return {
+        "orphaned_photos_removed": removed,
+        "businesses_updated":      len(businesses_affected),
+    }
 
 
 # ---------------------------------------------------------------------------

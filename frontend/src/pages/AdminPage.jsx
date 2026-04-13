@@ -5,7 +5,7 @@ import {
   getAdminBusinesses, updateAdminBusiness, deleteAdminBusiness,
   getAdminUsers,      deleteAdminUser,    unlinkBusinessUser,
   getAdminReviews,    deleteAdminReview,
-  getAdminMedia,      deleteAdminMedia,
+  getAdminMedia,      deleteAdminMedia,  cleanupOrphanedPhotos,
 } from "../services/api";
 
 // ---------------------------------------------------------------------------
@@ -389,9 +389,10 @@ function ReviewsTab() {
 // ---------------------------------------------------------------------------
 
 function MediaTab() {
-  const [rows,  setRows]  = useState(null);
-  const [query, setQuery] = useState("");
-  const [error, setError] = useState(null);
+  const [rows,     setRows]     = useState(null);
+  const [query,    setQuery]    = useState("");
+  const [error,    setError]    = useState(null);
+  const [cleaning, setCleaning] = useState(false);
 
   const load = useCallback(async () => {
     try { setRows(await getAdminMedia()); }
@@ -412,12 +413,46 @@ function MediaTab() {
     } catch (e) { alert(e.message); }
   };
 
+  const handleCleanup = async () => {
+    if (!window.confirm("Scan all photos and remove any whose files no longer exist in Storage? This may take a moment.")) return;
+    setCleaning(true);
+    try {
+      const result = await cleanupOrphanedPhotos();
+      alert(`Cleanup complete. Orphaned photos removed: ${result.orphaned_photos_removed}. Businesses updated: ${result.businesses_updated}.`);
+      load();
+    } catch (e) {
+      alert(`Cleanup failed: ${e.message}`);
+    } finally {
+      setCleaning(false);
+    }
+  };
+
   if (!rows) return <p style={{ color: "#6b7280", fontSize: "13px" }}>Loading…</p>;
 
   return (
     <>
       {error && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
-      <SearchInput value={query} onChange={setQuery} placeholder="Search by business ID…" />
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+        <SearchInput value={query} onChange={setQuery} placeholder="Search by business ID…" />
+        <button
+          onClick={handleCleanup}
+          disabled={cleaning}
+          style={{
+            flexShrink:      0,
+            padding:         "7px 14px",
+            backgroundColor: cleaning ? "#e5e7eb" : "#fef3c7",
+            color:           cleaning ? "#9ca3af"  : "#92400e",
+            border:          "1px solid #fcd34d",
+            borderRadius:    "8px",
+            fontSize:        "13px",
+            fontWeight:      "600",
+            cursor:          cleaning ? "not-allowed" : "pointer",
+            whiteSpace:      "nowrap",
+          }}
+        >
+          {cleaning ? "Scanning…" : "Clean Up Orphaned Photos"}
+        </button>
+      </div>
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
@@ -433,9 +468,9 @@ function MediaTab() {
             backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px",
             overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
           }}>
-            {p.url ? (
+            {p.photoUrl ? (
               <img
-                src={p.url}
+                src={p.photoUrl}
                 alt=""
                 style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }}
               />
