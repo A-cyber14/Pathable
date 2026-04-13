@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import MapView      from "../components/MapView";
-import BusinessCard from "../components/BusinessCard";
-import SearchBar    from "../components/SearchBar";
-import { getTopRated } from "../services/api";
+import { useNavigate }  from "react-router-dom";
+import MapView          from "../components/MapView";
+import BusinessCard     from "../components/BusinessCard";
+import SearchBar        from "../components/SearchBar";
+import { getTopRated }  from "../services/api";
 
 // ---------------------------------------------------------------------------
-// SelectedCard — compact floating preview card over the map
+// SelectedCard — compact floating preview for a Pathable business
 // ---------------------------------------------------------------------------
 function SelectedCard({ business, onClose }) {
   const score = business.accessibility_score;
@@ -40,7 +41,6 @@ function SelectedCard({ business, onClose }) {
         style={{ position: "absolute", top: "10px", right: "12px", background: "none", border: "none", fontSize: "16px", cursor: "pointer", color: "#9ca3af", lineHeight: 1 }}
       >✕</button>
 
-      {/* Name + score */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", paddingRight: "24px" }}>
         <span style={{ fontWeight: "700", fontSize: "15px", color: "#111827", flex: 1 }}>{business.name}</span>
         {score != null && (
@@ -50,10 +50,8 @@ function SelectedCard({ business, onClose }) {
         )}
       </div>
 
-      {/* Address */}
       <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>📍 {business.address}</p>
 
-      {/* Tags */}
       {tags.length > 0 && (
         <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
           {tags.map(({ label, ok }) => (
@@ -64,13 +62,103 @@ function SelectedCard({ business, onClose }) {
         </div>
       )}
 
-      {/* View details */}
       <a
         href={`/business/${business.id}`}
         style={{ display: "block", textAlign: "center", padding: "9px", backgroundColor: "#111827", color: "#fff", borderRadius: "8px", fontSize: "13px", fontWeight: "600", textDecoration: "none", marginTop: "2px" }}
       >
         View Details →
       </a>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ExternalPlaceCard — floating preview for a non-Pathable external place
+// ---------------------------------------------------------------------------
+function ExternalPlaceCard({ place, onClose }) {
+  const navigate = useNavigate();
+
+  return (
+    <div style={{
+      position:        "absolute",
+      bottom:          "20px",
+      left:            "50%",
+      transform:       "translateX(-50%)",
+      width:           "calc(100% - 40px)",
+      maxWidth:        "420px",
+      backgroundColor: "#fff",
+      borderRadius:    "14px",
+      padding:         "16px 18px",
+      boxShadow:       "0 4px 20px rgba(0,0,0,0.14)",
+      zIndex:          10,
+      display:         "flex",
+      flexDirection:   "column",
+      gap:             "8px",
+    }}>
+      <button
+        onClick={onClose}
+        style={{ position: "absolute", top: "10px", right: "12px", background: "none", border: "none", fontSize: "16px", cursor: "pointer", color: "#9ca3af", lineHeight: 1 }}
+      >✕</button>
+
+      {/* Name */}
+      <span style={{ fontWeight: "700", fontSize: "15px", color: "#111827", paddingRight: "24px" }}>
+        {place.name}
+      </span>
+
+      {/* Address */}
+      <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>📍 {place.address}</p>
+
+      {/* Not-in-Pathable notice */}
+      <div style={{
+        backgroundColor: "#fffbeb",
+        border:          "1px solid #fde68a",
+        borderRadius:    "8px",
+        padding:         "8px 10px",
+        fontSize:        "12px",
+        color:           "#92400e",
+        display:         "flex",
+        alignItems:      "center",
+        gap:             "6px",
+      }}>
+        <span>⚠️</span>
+        <span>This place is not yet on Pathable</span>
+      </div>
+
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: "8px", marginTop: "2px" }}>
+        <button
+          onClick={() => navigate(`/place/${place.place_id}`, { state: { place } })}
+          style={{
+            flex:            1,
+            padding:         "9px",
+            backgroundColor: "#f3f4f6",
+            color:           "#374151",
+            border:          "none",
+            borderRadius:    "8px",
+            fontSize:        "13px",
+            fontWeight:      "600",
+            cursor:          "pointer",
+          }}
+        >
+          View Details
+        </button>
+        <button
+          onClick={() => navigate(`/place/${place.place_id}`, { state: { place, openAddModal: true } })}
+          style={{
+            flex:            1,
+            padding:         "9px",
+            backgroundColor: "#2563eb",
+            color:           "#fff",
+            border:          "none",
+            borderRadius:    "8px",
+            fontSize:        "13px",
+            fontWeight:      "600",
+            cursor:          "pointer",
+          }}
+        >
+          + Add to Pathable
+        </button>
+      </div>
     </div>
   );
 }
@@ -90,14 +178,13 @@ function EmptyState() {
 
 // ---------------------------------------------------------------------------
 // HomePage
-// Loads top-10 rated businesses on mount.
-// Unified SearchBar navigates to detail pages — does not filter the list.
 // ---------------------------------------------------------------------------
 export default function HomePage() {
-  const [businesses,       setBusinesses]       = useState([]);
-  const [selectedBusiness, setSelectedBusiness] = useState(null);
-  const [loading,          setLoading]          = useState(true);
-  const [error,            setError]            = useState(null);
+  const [businesses,          setBusinesses]          = useState([]);
+  const [selectedBusiness,    setSelectedBusiness]    = useState(null);
+  const [selectedExternalPlace, setSelectedExternalPlace] = useState(null);
+  const [loading,             setLoading]             = useState(true);
+  const [error,               setError]               = useState(null);
 
   useEffect(() => {
     getTopRated()
@@ -107,7 +194,13 @@ export default function HomePage() {
   }, []);
 
   const handleSelectBusiness = (business) => {
+    setSelectedExternalPlace(null);
     setSelectedBusiness((prev) => (prev?.id === business.id ? null : business));
+  };
+
+  const handleSelectExternalPlace = (place) => {
+    setSelectedBusiness(null);
+    setSelectedExternalPlace(place);
   };
 
   return (
@@ -125,7 +218,10 @@ export default function HomePage() {
           position:        "relative",
         }}
       >
-        <SearchBar onSelectBusiness={handleSelectBusiness} />
+        <SearchBar
+          onSelectBusiness={handleSelectBusiness}
+          onSelectExternalPlace={handleSelectExternalPlace}
+        />
       </div>
 
       {/* Main content */}
@@ -138,10 +234,18 @@ export default function HomePage() {
             selectedBusiness={selectedBusiness}
             onSelectBusiness={handleSelectBusiness}
             mapCenter={null}
+            externalPlace={selectedExternalPlace}
           />
 
           {selectedBusiness && (
             <SelectedCard business={selectedBusiness} onClose={() => setSelectedBusiness(null)} />
+          )}
+
+          {selectedExternalPlace && !selectedBusiness && (
+            <ExternalPlaceCard
+              place={selectedExternalPlace}
+              onClose={() => setSelectedExternalPlace(null)}
+            />
           )}
         </div>
 

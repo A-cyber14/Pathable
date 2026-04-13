@@ -52,10 +52,12 @@ const OPTIONS = [
 export default function AccountTypePage() {
   const { currentUser, refreshProfile } = useAuth();
   const navigate  = useNavigate();
-  const [selected, setSelected] = useState(null);
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState(null);
-  const [hovered,  setHovered]  = useState(null);
+  const [selected,      setSelected]      = useState(null);
+  const [saving,        setSaving]        = useState(false);
+  const [error,         setError]         = useState(null);
+  const [hovered,       setHovered]       = useState(null);
+  // After picking "user" type, show the identity preference step
+  const [showIdentityStep, setShowIdentityStep] = useState(false);
 
   const handleSelect = async (type) => {
     if (saving) return;
@@ -70,15 +72,88 @@ export default function AccountTypePage() {
       if (type === "business") {
         navigate("/business-setup");
       } else {
-        navigate("/");
+        // Show identity preference prompt before going to the map
+        setSaving(false);
+        setShowIdentityStep(true);
       }
-      // business-setup will navigate to /business-profile after linking
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
       setSelected(null);
       setSaving(false);
     }
   };
+
+  const handleIdentityChoice = async (hideIdentity) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateProfile({ hideIdentity });
+      await refreshProfile();
+      navigate("/");
+    } catch (err) {
+      setError(err.message || "Something went wrong. Please try again.");
+      setSaving(false);
+    }
+  };
+
+  // ── Identity preference step ──────────────────────────────────────────────
+  if (showIdentityStep) {
+    return (
+      <div style={{
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        minHeight: "100vh", backgroundColor: "#f9fafb", fontFamily: "sans-serif", padding: "32px 24px",
+      }}>
+        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          <div style={{ fontSize: "36px", marginBottom: "12px" }}>👤</div>
+          <h1 style={{ fontSize: "22px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>
+            Show your identity on reviews and contributions?
+          </h1>
+          <p style={{ fontSize: "14px", color: "#6b7280", margin: 0, lineHeight: "1.6", maxWidth: "380px" }}>
+            Choose whether your name appears when you leave reviews or upload photos.
+            You can change this anytime in your profile settings.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", maxWidth: "360px" }}>
+          <button
+            onClick={() => handleIdentityChoice(false)}
+            disabled={saving}
+            style={{
+              padding: "18px 24px", backgroundColor: "#111827", color: "#fff",
+              border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "700",
+              cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1,
+              textAlign: "left",
+            }}
+          >
+            <div>Yes, show my name</div>
+            <div style={{ fontSize: "12px", fontWeight: "400", color: "#9ca3af", marginTop: "3px" }}>
+              Your display name is shown on your reviews and photos
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleIdentityChoice(true)}
+            disabled={saving}
+            style={{
+              padding: "18px 24px", backgroundColor: "#fff", color: "#374151",
+              border: "1.5px solid #e5e7eb", borderRadius: "12px", fontSize: "15px", fontWeight: "700",
+              cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1,
+              textAlign: "left",
+            }}
+          >
+            <div>Hide my identity</div>
+            <div style={{ fontSize: "12px", fontWeight: "400", color: "#9ca3af", marginTop: "3px" }}>
+              You'll appear as "Anonymous" on all contributions
+            </div>
+          </button>
+        </div>
+
+        {error && (
+          <p style={{ marginTop: "20px", fontSize: "13px", color: "#dc2626", textAlign: "center" }}>{error}</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
