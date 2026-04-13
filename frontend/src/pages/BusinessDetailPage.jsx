@@ -209,7 +209,7 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError, onA
         >›</button>
       </div>
 
-      {photo.caption && (
+      {(photo.caption || photo.uploaderName) && (
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
@@ -221,7 +221,12 @@ function PhotoModal({ photos, category, initialIndex, onClose, onMediaError, onA
             lineHeight: "1.5",
           }}
         >
-          {photo.caption}
+          {photo.caption && <span>{photo.caption}</span>}
+          {photo.uploaderName && (
+            <span style={{ color: "#9ca3af", fontSize: "12px", display: "block", marginTop: photo.caption ? "4px" : 0 }}>
+              Uploaded by {photo.uploaderName}
+            </span>
+          )}
         </div>
       )}
 

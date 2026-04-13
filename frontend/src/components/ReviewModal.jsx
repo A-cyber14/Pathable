@@ -88,7 +88,7 @@ export default function ReviewModal({ reviews, onClose, onWriteReview }) {
                       <div>
                         <StarRating value={review.rating || 0} size={15} />
                         <p style={{ margin: "4px 0 0", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
-                          {review.reviewerName || "Anonymous"}
+                          {review.reviewerName || "Contributor"}
                         </p>
                       </div>
                       {dateLabel && (

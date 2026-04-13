@@ -105,6 +105,7 @@ class ProfileUpdate(BaseModel):
     disabilityType:     Optional[str]       = None
     featurePreferences: Optional[list[str]] = []
     accountType:        Optional[str]       = None   # "user" | "business"
+    hideIdentity:       Optional[bool]      = None   # None = no change; False = show name (default); True = anonymous
 
 
 class SetupBusinessBody(BaseModel):
@@ -138,6 +139,7 @@ def get_profile(authorization: str = Header(...)):
             "disabilityType":     None,
             "featurePreferences": [],
             "accountType":        "admin" if is_admin else None,
+            "hideIdentity":       False,
             "bookmarks":          [],
         }
         if decoded.get("name"):
@@ -150,6 +152,7 @@ def get_profile(authorization: str = Header(...)):
             "featurePreferences": [],
             "accountType":        "admin" if is_admin else None,
             "businessId":         None,
+            "hideIdentity":       False,
             **activity,
         }
 
@@ -160,11 +163,22 @@ def get_profile(authorization: str = Header(...)):
         user_ref.update({"accountType": "admin"})
         data["accountType"] = "admin"
 
+    # Back-fill displayName / email if missing (first time after adding this logic)
+    updates: dict = {}
+    if decoded.get("name") and not data.get("displayName"):
+        updates["displayName"] = decoded["name"]
+    if email and not data.get("email"):
+        updates["email"] = email
+    if updates:
+        user_ref.update(updates)
+        data.update(updates)
+
     return {
         "disabilityType":     data.get("disabilityType", None),
         "featurePreferences": data.get("featurePreferences", []),
         "accountType":        data.get("accountType", None),
         "businessId":         data.get("businessId", None),
+        "hideIdentity":       data.get("hideIdentity", False),
         **activity,
     }
 
@@ -184,6 +198,8 @@ def update_profile(body: ProfileUpdate, authorization: str = Header(...)):
     }
     if body.accountType in ("user", "business"):
         update_data["accountType"] = body.accountType
+    if body.hideIdentity is not None:
+        update_data["hideIdentity"] = body.hideIdentity
 
     user_doc = user_ref.get()
     if user_doc.exists:
