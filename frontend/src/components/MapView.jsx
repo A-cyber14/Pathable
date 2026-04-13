@@ -44,11 +44,13 @@ function buildIcon(score, isSelected, isTopMatch) {
 //   selectedBusiness — currently selected business or null
 //   onSelectBusiness — called when a marker is clicked
 //   mapCenter        — { lat, lng } to pan to (set by location search)
+//   externalPlace    — external (non-Pathable) place to drop a temp yellow marker
 // ---------------------------------------------------------------------------
-export default function MapView({ businesses = [], selectedBusiness, onSelectBusiness, mapCenter }) {
-  const mapRef         = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const markersRef     = useRef([]);
+export default function MapView({ businesses = [], selectedBusiness, onSelectBusiness, mapCenter, externalPlace }) {
+  const mapRef            = useRef(null);
+  const mapInstanceRef    = useRef(null);
+  const markersRef        = useRef([]);
+  const externalMarkerRef = useRef(null);
 
   // 1. Initialize map once
   useEffect(() => {
@@ -100,6 +102,29 @@ export default function MapView({ businesses = [], selectedBusiness, onSelectBus
       if (isSelected) mapInstanceRef.current?.panTo(marker.getPosition());
     });
   }, [selectedBusiness]);
+
+  // 5. Drop/clear a temporary yellow marker for external (non-Pathable) places
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    // Clear previous temp marker
+    if (externalMarkerRef.current) {
+      externalMarkerRef.current.setMap(null);
+      externalMarkerRef.current = null;
+    }
+
+    if (externalPlace?.latitude && externalPlace?.longitude) {
+      const pos = { lat: externalPlace.latitude, lng: externalPlace.longitude };
+      externalMarkerRef.current = new window.google.maps.Marker({
+        position: pos,
+        map:      mapInstanceRef.current,
+        title:    externalPlace.name,
+        icon:     PIN_YELLOW,
+      });
+      mapInstanceRef.current.panTo(pos);
+      mapInstanceRef.current.setZoom(15);
+    }
+  }, [externalPlace]);
 
   return <div ref={mapRef} style={{ width: "100%", height: "100%" }} />;
 }

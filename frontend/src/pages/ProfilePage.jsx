@@ -73,6 +73,7 @@ export default function ProfilePage() {
   const { largerText, highContrast, toggleLargerText, toggleHighContrast } = useDisplaySettings();
   const [disabilityType,     setDisabilityType]     = useState("");
   const [featurePreferences, setFeaturePreferences] = useState([]);
+  const [hideIdentity,       setHideIdentity]       = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
@@ -83,6 +84,7 @@ export default function ProfilePage() {
       .then((data) => {
         setDisabilityType(data.disabilityType || "");
         setFeaturePreferences(data.featurePreferences || []);
+        setHideIdentity(data.hideIdentity ?? false);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -100,7 +102,7 @@ export default function ProfilePage() {
     setSaved(false);
     setError(null);
     try {
-      await updateProfile({ disabilityType, featurePreferences });
+      await updateProfile({ disabilityType, featurePreferences, hideIdentity });
       setSaved(true);
     } catch (err) {
       setError(err.message || "Failed to save profile.");
@@ -174,6 +176,18 @@ export default function ProfilePage() {
             description="Boosts text and background contrast for better visibility"
             checked={highContrast}
             onChange={toggleHighContrast}
+          />
+        </div>
+
+        {/* Privacy Settings — persisted to backend */}
+        <div style={cardStyle}>
+          <p style={{ margin: "0 0 12px", fontSize: "12px", fontWeight: "600", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>Privacy</p>
+          <ToggleRow
+            id="toggle-hide-identity"
+            label="Show my identity on reviews and contributions"
+            description="When on, your name appears on reviews and photos you submit. You can change this anytime."
+            checked={!hideIdentity}
+            onChange={(e) => { setHideIdentity(!e.target.checked); setSaved(false); }}
           />
         </div>
 

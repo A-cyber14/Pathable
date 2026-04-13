@@ -55,7 +55,7 @@ function getTrustLabel(business) {
 }
 
 // ---------------------------------------------------------------------------
-// SelectedCard — compact floating preview card over the map
+// SelectedCard — compact floating preview for a Pathable business
 // ---------------------------------------------------------------------------
 function SelectedCard({ business, onClose }) {
   const score      = business.accessibility_score;
@@ -133,10 +133,8 @@ function SelectedCard({ business, onClose }) {
         )}
       </div>
 
-      {/* Address */}
       <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>📍 {business.address}</p>
 
-      {/* Tags */}
       {tags.length > 0 && (
         <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
           {tags.map(({ label, ok }) => (
@@ -181,6 +179,97 @@ function SelectedCard({ business, onClose }) {
       >
         View Full Accessibility Report →
       </a>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ExternalPlaceCard — floating preview for a non-Pathable external place
+// ---------------------------------------------------------------------------
+function ExternalPlaceCard({ place, onClose }) {
+  const navigate = useNavigate();
+
+  return (
+    <div style={{
+      position:        "absolute",
+      bottom:          "20px",
+      left:            "50%",
+      transform:       "translateX(-50%)",
+      width:           "calc(100% - 40px)",
+      maxWidth:        "420px",
+      backgroundColor: "#fff",
+      borderRadius:    "14px",
+      padding:         "16px 18px",
+      boxShadow:       "0 4px 20px rgba(0,0,0,0.14)",
+      zIndex:          10,
+      display:         "flex",
+      flexDirection:   "column",
+      gap:             "8px",
+    }}>
+      <button
+        onClick={onClose}
+        style={{ position: "absolute", top: "10px", right: "12px", background: "none", border: "none", fontSize: "16px", cursor: "pointer", color: "#9ca3af", lineHeight: 1 }}
+      >✕</button>
+
+      {/* Name */}
+      <span style={{ fontWeight: "700", fontSize: "15px", color: "#111827", paddingRight: "24px" }}>
+        {place.name}
+      </span>
+
+      {/* Address */}
+      <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>📍 {place.address}</p>
+
+      {/* Not-in-Pathable notice */}
+      <div style={{
+        backgroundColor: "#fffbeb",
+        border:          "1px solid #fde68a",
+        borderRadius:    "8px",
+        padding:         "8px 10px",
+        fontSize:        "12px",
+        color:           "#92400e",
+        display:         "flex",
+        alignItems:      "center",
+        gap:             "6px",
+      }}>
+        <span>⚠️</span>
+        <span>This place is not yet on Pathable</span>
+      </div>
+
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: "8px", marginTop: "2px" }}>
+        <button
+          onClick={() => navigate(`/place/${place.place_id}`, { state: { place } })}
+          style={{
+            flex:            1,
+            padding:         "9px",
+            backgroundColor: "#f3f4f6",
+            color:           "#374151",
+            border:          "none",
+            borderRadius:    "8px",
+            fontSize:        "13px",
+            fontWeight:      "600",
+            cursor:          "pointer",
+          }}
+        >
+          View Details
+        </button>
+        <button
+          onClick={() => navigate(`/place/${place.place_id}`, { state: { place, openAddModal: true } })}
+          style={{
+            flex:            1,
+            padding:         "9px",
+            backgroundColor: "#2563eb",
+            color:           "#fff",
+            border:          "none",
+            borderRadius:    "8px",
+            fontSize:        "13px",
+            fontWeight:      "600",
+            cursor:          "pointer",
+          }}
+        >
+          + Add to Pathable
+        </button>
+      </div>
     </div>
   );
 }
@@ -253,6 +342,7 @@ export default function HomePage() {
   }, []);
 
   const handleSelectBusiness = (business) => {
+    setSelectedExternalPlace(null);
     setSelectedBusiness((prev) => (prev?.id === business.id ? null : business));
   };
 
@@ -295,10 +385,18 @@ export default function HomePage() {
             selectedBusiness={selectedBusiness}
             onSelectBusiness={handleSelectBusiness}
             mapCenter={null}
+            externalPlace={selectedExternalPlace}
           />
 
           {selectedBusiness && (
             <SelectedCard business={selectedBusiness} onClose={() => setSelectedBusiness(null)} />
+          )}
+
+          {selectedExternalPlace && !selectedBusiness && (
+            <ExternalPlaceCard
+              place={selectedExternalPlace}
+              onClose={() => setSelectedExternalPlace(null)}
+            />
           )}
         </div>
 
