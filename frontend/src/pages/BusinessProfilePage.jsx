@@ -8,6 +8,8 @@ import {
   getDashboardAnalytics,
   respondToReview,
   getBusinessPhotos,
+  searchBusinesses,
+  setupBusiness,
 } from "../services/api";
 
 // ---------------------------------------------------------------------------
@@ -241,8 +243,17 @@ const ANALYTICS_ITEMS = [
 // Main page
 // ---------------------------------------------------------------------------
 
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
 export default function BusinessProfilePage() {
-  const { currentUser, userProfile, logout } = useAuth();
+  const { currentUser, logout, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   const [business,  setBusiness]  = useState(null);
@@ -252,6 +263,40 @@ export default function BusinessProfilePage() {
   const [loading,   setLoading]   = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [error,     setError]     = useState(null);
+
+  // Claim form state (used when forbidden)
+  const [claimQuery,       setClaimQuery]       = useState("");
+  const [claimResults,     setClaimResults]     = useState([]);
+  const [claimSearching,   setClaimSearching]   = useState(false);
+  const [claimSelected,    setClaimSelected]    = useState(null);
+  const [claimSubmitting,  setClaimSubmitting]  = useState(false);
+  const [claimError,       setClaimError]       = useState(null);
+
+  const debouncedClaimQuery = useDebounce(claimQuery, 350);
+
+  useEffect(() => {
+    if (!debouncedClaimQuery.trim()) { setClaimResults([]); return; }
+    setClaimSearching(true);
+    searchBusinesses(debouncedClaimQuery)
+      .then((res) => setClaimResults(Array.isArray(res) ? res.slice(0, 8) : []))
+      .catch(() => setClaimResults([]))
+      .finally(() => setClaimSearching(false));
+  }, [debouncedClaimQuery]);
+
+  const handleClaimContinue = async () => {
+    if (!claimSelected) { setClaimError("Please select your business from the list."); return; }
+    setClaimSubmitting(true);
+    setClaimError(null);
+    try {
+      await setupBusiness({ claim_id: claimSelected.id });
+      await refreshProfile();
+      navigate("/business-profile");
+    } catch (err) {
+      setClaimError(err.message || "Failed to link business. Please try again.");
+    } finally {
+      setClaimSubmitting(false);
+    }
+  };
 
   // Edit state
   const [editing,     setEditing]     = useState(false);
@@ -348,14 +393,100 @@ export default function BusinessProfilePage() {
   if (forbidden) {
     return (
       <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: "32px 24px" }}>
-        <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-          <div style={{ ...card, textAlign: "center", padding: "40px 24px" }}>
-            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🏢</div>
-            <h2 style={{ fontSize: "16px", fontWeight: "700", color: "#111827", margin: "0 0 8px" }}>Business Profile</h2>
-            <p style={{ fontSize: "14px", color: "#6b7280", margin: 0, lineHeight: "1.5" }}>
-              This page is for verified business owners. Contact us to get your business linked.
-            </p>
+        <div style={{ maxWidth: "480px", margin: "0 auto" }}>
+
+          {/* Header row with sign out */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "24px" }}>🏢</span>
+              <h1 style={{ fontSize: "18px", fontWeight: "800", color: "#111827", margin: 0 }}>Claim Your Business</h1>
+            </div>
+            <button
+              onClick={async () => { await logout(); navigate("/"); }}
+              style={{ padding: "7px 14px", backgroundColor: "#fff", color: "#6b7280", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "13px", fontWeight: "500", cursor: "pointer", flexShrink: 0 }}
+            >
+              Sign out
+            </button>
           </div>
+
+          <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 24px", lineHeight: "1.6" }}>
+            Search for your business in Pathable and link it to your account.
+          </p>
+
+          {/* Search card */}
+          <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "14px", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "16px" }}>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#6b7280", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Business Name
+            </label>
+
+            <div style={{ position: "relative" }}>
+              <input
+                value={claimQuery}
+                onChange={(e) => { setClaimQuery(e.target.value); setClaimSelected(null); setClaimError(null); }}
+                placeholder="Start typing to search…"
+                style={{ width: "100%", padding: "10px 12px", fontSize: "14px", border: "1.5px solid #d1d5db", borderRadius: "8px", outline: "none", backgroundColor: "#f9fafb", color: "#111827", fontFamily: "sans-serif", boxSizing: "border-box" }}
+                autoFocus
+              />
+
+              {/* Search results dropdown */}
+              {!claimSearching && claimResults.length > 0 && (
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", zIndex: 10, overflow: "hidden" }}>
+                  {claimResults.map((biz, i) => (
+                    <button
+                      key={biz.id}
+                      onClick={() => { setClaimSelected(biz); setClaimQuery(biz.name); setClaimResults([]); setClaimError(null); }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "12px 14px", background: "none", border: "none", borderBottom: i < claimResults.length - 1 ? "1px solid #f3f4f6" : "none", cursor: "pointer" }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f9fafb"}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                    >
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{biz.name}</div>
+                      <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>{biz.address}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {claimSearching && (
+                <div style={{ marginTop: "8px", fontSize: "13px", color: "#9ca3af" }}>Searching…</div>
+              )}
+
+              {!claimSearching && debouncedClaimQuery.trim() && claimResults.length === 0 && !claimSelected && (
+                <div style={{ marginTop: "8px", fontSize: "13px", color: "#9ca3af" }}>No businesses found. Try a different name.</div>
+              )}
+            </div>
+
+            {/* Selected confirmation */}
+            {claimSelected && (
+              <div style={{ marginTop: "12px", padding: "12px 14px", backgroundColor: "#f0fdf4", border: "1.5px solid #bbf7d0", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{claimSelected.name}</div>
+                  <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>{claimSelected.address}</div>
+                </div>
+                <button
+                  onClick={() => { setClaimSelected(null); setClaimQuery(""); }}
+                  style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: "16px", padding: "0 0 0 12px", flexShrink: 0 }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+
+          {claimError && (
+            <p style={{ color: "#dc2626", fontSize: "13px", margin: "0 0 12px" }}>{claimError}</p>
+          )}
+
+          <button
+            onClick={handleClaimContinue}
+            disabled={claimSubmitting || !claimSelected}
+            style={{ width: "100%", padding: "14px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "10px", fontSize: "15px", fontWeight: "600", cursor: claimSubmitting || !claimSelected ? "not-allowed" : "pointer", opacity: claimSubmitting || !claimSelected ? 0.5 : 1, transition: "opacity 0.15s" }}
+          >
+            {claimSubmitting ? "Linking your business…" : "Continue →"}
+          </button>
+
+          <p style={{ fontSize: "12px", color: "#9ca3af", textAlign: "center", marginTop: "12px", lineHeight: "1.5" }}>
+            Your business must already be listed on Pathable. Contact us if you can't find it.
+          </p>
         </div>
       </div>
     );
