@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import MapView      from "../components/MapView";
 import BusinessCard from "../components/BusinessCard";
 import SearchBar    from "../components/SearchBar";
@@ -328,11 +329,12 @@ function FilterChips({ activeFilters, onToggle }) {
 // HomePage
 // ---------------------------------------------------------------------------
 export default function HomePage() {
-  const [businesses,       setBusinesses]       = useState([]);
-  const [selectedBusiness, setSelectedBusiness] = useState(null);
-  const [loading,          setLoading]          = useState(true);
-  const [error,            setError]            = useState(null);
-  const [activeFilters,    setActiveFilters]    = useState(new Set());
+  const [businesses,            setBusinesses]            = useState([]);
+  const [selectedBusiness,      setSelectedBusiness]      = useState(null);
+  const [selectedExternalPlace, setSelectedExternalPlace] = useState(null);
+  const [loading,               setLoading]               = useState(true);
+  const [error,                 setError]                 = useState(null);
+  const [activeFilters,         setActiveFilters]         = useState(new Set());
 
   useEffect(() => {
     getTopRated()
