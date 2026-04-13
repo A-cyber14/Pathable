@@ -9,7 +9,10 @@
 import axios from "axios";
 import { auth } from "../firebase";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const _rawUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const BASE_URL = _rawUrl.startsWith("http://") && !_rawUrl.includes("localhost")
+  ? _rawUrl.replace("http://", "https://")
+  : _rawUrl;
 
 // ---------------------------------------------------------------------------
 // Axios instance
