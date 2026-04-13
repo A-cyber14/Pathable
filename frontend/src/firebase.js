@@ -9,11 +9,15 @@ import { getAuth }       from "firebase/auth";
 import { getStorage }    from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,  // e.g. pathable-c6dab.appspot.com
+  apiKey:        import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:     import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "pathable-c6dab.firebasestorage.app",
 };
+
+if (!firebaseConfig.storageBucket) {
+  console.error("[Firebase] storageBucket is not set — uploads will fail. Check VITE_FIREBASE_STORAGE_BUCKET in .env.");
+}
 
 const app = initializeApp(firebaseConfig);
 
