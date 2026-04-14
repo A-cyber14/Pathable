@@ -189,8 +189,11 @@ export default function SearchBar({ onSelectBusiness }) {
             <div style={{ padding: "12px 16px", fontSize: "14px", color: "#6b7280" }}>
               No results found
             </div>
-          ) : (
-            results.map((result, index) => (
+          ) : (() => {
+            const dbResults    = results.filter((r) => r.in_db);
+            const placeResults = results.filter((r) => !r.in_db);
+
+            const renderRow = (result, index) => (
               <div
                 key={result.place_id || result.id || index}
                 onClick={() => selectResult(result)}
@@ -199,15 +202,14 @@ export default function SearchBar({ onSelectBusiness }) {
                   padding:         "10px 16px",
                   cursor:          "pointer",
                   backgroundColor: index === highlightedIndex ? "#f3f4f6" : "#fff",
-                  borderBottom:    index < results.length - 1 ? "1px solid #f3f4f6" : "none",
+                  borderBottom:    "1px solid #f3f4f6",
                   transition:      "background-color 0.1s",
                   display:         "flex",
                   alignItems:      "center",
                   gap:             "10px",
                 }}
               >
-                {/* Icon: pin for Places, building for DB */}
-                <span style={{ fontSize: "16px", flexShrink: 0, color: result.in_db ? "#2563eb" : "#9ca3af" }}>
+                <span style={{ fontSize: "16px", flexShrink: 0 }}>
                   {result.in_db ? "🏢" : "📍"}
                 </span>
 
@@ -216,20 +218,8 @@ export default function SearchBar({ onSelectBusiness }) {
                     <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>
                       {result.name}
                     </span>
-                    {/* ★ badge — only for verified Pathable businesses */}
                     {result.in_db && (
-                      <span
-                        style={{
-                          fontSize:        "11px",
-                          fontWeight:      "600",
-                          color:           "#d97706",
-                          backgroundColor: "#fef3c7",
-                          border:          "1px solid #fde68a",
-                          borderRadius:    "4px",
-                          padding:         "1px 5px",
-                          flexShrink:      0,
-                        }}
-                      >
+                      <span style={{ fontSize: "11px", fontWeight: "600", color: "#d97706", backgroundColor: "#fef3c7", border: "1px solid #fde68a", borderRadius: "4px", padding: "1px 5px", flexShrink: 0 }}>
                         ★ Pathable
                       </span>
                     )}
@@ -239,25 +229,41 @@ export default function SearchBar({ onSelectBusiness }) {
                   </div>
                 </div>
 
-                {/* Score badge for DB results */}
                 {result.in_db && result.accessibility_score != null && (
-                  <span
-                    style={{
-                      fontSize:        "12px",
-                      fontWeight:      "700",
-                      color:           result.accessibility_score >= 75 ? "#16a34a" : result.accessibility_score >= 50 ? "#d97706" : "#dc2626",
-                      backgroundColor: result.accessibility_score >= 75 ? "#f0fdf4" : result.accessibility_score >= 50 ? "#fffbeb" : "#fef2f2",
-                      borderRadius:    "6px",
-                      padding:         "2px 6px",
-                      flexShrink:      0,
-                    }}
-                  >
+                  <span style={{
+                    fontSize: "12px", fontWeight: "700", borderRadius: "6px", padding: "2px 6px", flexShrink: 0,
+                    color:           result.accessibility_score >= 75 ? "#16a34a" : result.accessibility_score >= 50 ? "#d97706" : "#dc2626",
+                    backgroundColor: result.accessibility_score >= 75 ? "#f0fdf4" : result.accessibility_score >= 50 ? "#fffbeb" : "#fef2f2",
+                  }}>
                     {result.accessibility_score}
                   </span>
                 )}
               </div>
-            ))
-          )}
+            );
+
+            const sectionLabel = (text) => (
+              <div style={{ padding: "6px 16px 4px", fontSize: "11px", fontWeight: "700", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", backgroundColor: "#f9fafb" }}>
+                {text}
+              </div>
+            );
+
+            return (
+              <>
+                {dbResults.length > 0 && (
+                  <>
+                    {sectionLabel("Pathable Locations")}
+                    {dbResults.map((r) => renderRow(r, results.indexOf(r)))}
+                  </>
+                )}
+                {placeResults.length > 0 && (
+                  <>
+                    {sectionLabel("Other Places")}
+                    {placeResults.map((r) => renderRow(r, results.indexOf(r)))}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

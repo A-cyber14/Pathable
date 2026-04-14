@@ -167,7 +167,7 @@ def search_unified(q: str = Query(..., description="Unified search query")):
                 location=(PINELLAS_LAT, PINELLAS_LNG),
                 radius=SEARCH_RADIUS_M,
             )
-            for place in response.get("results", [])[:5]:
+            for place in response.get("results", [])[:8]:
                 place_id = place.get("place_id", "")
                 if place_id in db_place_ids:
                     continue
@@ -186,9 +186,8 @@ def search_unified(q: str = Query(..., description="Unified search query")):
         except Exception:
             pass
 
-    slots_remaining = max(0, 3 - len(db_results))
-    merged = db_results[:3] + places_results[:slots_remaining]
-    return merged[:3]
+    merged = db_results[:5] + places_results[:5]
+    return merged[:8]
 
 
 # ---------------------------------------------------------------------------
