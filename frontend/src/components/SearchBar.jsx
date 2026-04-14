@@ -8,9 +8,90 @@ import { searchUnified } from "../services/api";
 // Props:
 //   onSelectBusiness(business)    — called when a Pathable DB result is selected
 //   onSelectExternalPlace(place)  — called when a non-Pathable place is selected
-//                                   (stays on map instead of navigating away)
+//
+// External place search runs CLIENT-SIDE via the Maps JS Places library so it
+// works on Vercel even when GOOGLE_MAPS_API_KEY is not set on the Railway
+// backend. The backend's unified search supplies DB results (and external ones
+// too when its key is present); client-side results fill the gap otherwise.
 // ---------------------------------------------------------------------------
 
+const PINELLAS_CENTER = { lat: 27.9072, lng: -82.7169 };
+const SEARCH_RADIUS_M = 40000; // ~25 miles, matches backend
+
+// ---------------------------------------------------------------------------
+// searchGooglePlaces — AutocompleteService (no map instance required)
+// Returns results shaped like backend UnifiedSearchResult with in_db=false.
+// Coordinates are null here; they're fetched lazily on selection.
+// ---------------------------------------------------------------------------
+function searchGooglePlaces(query) {
+  return new Promise((resolve) => {
+    if (!window.google?.maps?.places) return resolve([]);
+    const svc = new window.google.maps.places.AutocompleteService();
+    svc.getPlacePredictions(
+      {
+        input:    query,
+        location: new window.google.maps.LatLng(PINELLAS_CENTER.lat, PINELLAS_CENTER.lng),
+        radius:   SEARCH_RADIUS_M,
+        types:    ["establishment"],
+      },
+      (predictions, status) => {
+        if (
+          status !== window.google.maps.places.PlacesServiceStatus.OK ||
+          !predictions?.length
+        ) {
+          return resolve([]);
+        }
+        resolve(
+          predictions.slice(0, 6).map((p) => ({
+            id:                  null,
+            name:                p.structured_formatting?.main_text || p.description,
+            address:             p.structured_formatting?.secondary_text || "",
+            place_id:            p.place_id,
+            latitude:            null,   // filled in fetchPlaceCoords on selection
+            longitude:           null,
+            in_db:               false,
+            accessibility_score: null,
+          }))
+        );
+      }
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// fetchPlaceCoords — PlacesService.getDetails for a single place_id
+// Called only when the user clicks a result that has no coordinates yet.
+// ---------------------------------------------------------------------------
+function fetchPlaceCoords(placeId) {
+  return new Promise((resolve) => {
+    if (!window.google?.maps?.places) return resolve(null);
+    // PlacesService accepts a plain HTMLElement for attributions (no map needed).
+    const attrDiv = document.createElement("div");
+    const svc = new window.google.maps.places.PlacesService(attrDiv);
+    svc.getDetails(
+      { placeId, fields: ["geometry", "name", "formatted_address"] },
+      (place, status) => {
+        if (
+          status === window.google.maps.places.PlacesServiceStatus.OK &&
+          place?.geometry?.location
+        ) {
+          resolve({
+            name:      place.name,
+            address:   place.formatted_address,
+            latitude:  place.geometry.location.lat(),
+            longitude: place.geometry.location.lng(),
+          });
+        } else {
+          resolve(null);
+        }
+      }
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// SearchBar component
+// ---------------------------------------------------------------------------
 export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
   const [query,            setQuery]            = useState("");
   const [results,          setResults]          = useState([]);
@@ -24,10 +105,10 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
   const navigate     = useNavigate();
 
   // Split results into the two sections
-  const pathableResults = results.filter((r) => r.in_db);
+  const pathableResults = results.filter((r) =>  r.in_db);
   const externalResults = results.filter((r) => !r.in_db);
 
-  // Flat ordered list for keyboard navigation (Pathable first, then external)
+  // Flat ordered list used for keyboard navigation (Pathable first, then external)
   const allResults = [...pathableResults, ...externalResults];
 
   // Close dropdown on outside click
@@ -42,7 +123,7 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Debounced unified search — fires 300ms after user stops typing
+  // Debounced search — fires 300 ms after the user stops typing
   const handleChange = (e) => {
     const value = e.target.value;
     setQuery(value);
@@ -58,12 +139,33 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const data = await searchUnified(value);
+        // Run backend search (Firestore DB + Places if key is set on Railway)
+        // and client-side Places search in parallel. Client-side search is the
+        // reliable fallback that makes external results work on Vercel even
+        // when GOOGLE_MAPS_API_KEY is absent from the Railway environment.
+        const [backendResults, placesResults] = await Promise.all([
+          searchUnified(value).catch((err) => {
+            console.error("[SearchBar] backend search-unified failed:", err?.message ?? err);
+            return [];
+          }),
+          searchGooglePlaces(value),
+        ]);
+
+        // Dedup: skip client-side results already returned by the backend.
+        const backendPlaceIds = new Set(
+          backendResults.map((r) => r.place_id).filter(Boolean)
+        );
+        const uniqueClientResults = placesResults.filter(
+          (r) => !backendPlaceIds.has(r.place_id)
+        );
+
+        const merged = [...backendResults, ...uniqueClientResults];
+
         setSearchError(false);
-        setResults(data);
+        setResults(merged);
         setDropdownVisible(value.trim().length >= 2);
       } catch (err) {
-        console.error("[SearchBar] search-unified failed:", err?.message ?? err);
+        console.error("[SearchBar] search failed:", err?.message ?? err);
         setSearchError(true);
         setResults([]);
         setDropdownVisible(true);
@@ -73,7 +175,7 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
     }, 300);
   };
 
-  // Keyboard navigation operates on the flat allResults array
+  // Keyboard navigation on the flat allResults array
   const handleKeyDown = (e) => {
     if (!dropdownVisible) return;
     if (e.key === "ArrowDown") {
@@ -93,18 +195,24 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
     }
   };
 
-  const selectResult = (result) => {
+  const selectResult = async (result) => {
     setQuery(result.name);
     setDropdownVisible(false);
     setHighlightedIndex(-1);
 
     if (result.in_db) {
-      // Known to Pathable — highlight on map + go to detail page
+      // Known to Pathable — highlight on map + navigate to detail page
       if (onSelectBusiness) onSelectBusiness(result);
       navigate(`/business/${result.id}`);
     } else {
-      // External place — stay on map, show preview card
-      if (onSelectExternalPlace) onSelectExternalPlace(result);
+      // External place — fetch coordinates if not already present (autocomplete
+      // results don't include geometry; only PlacesService.getDetails provides it).
+      let enriched = result;
+      if ((result.latitude == null || result.longitude == null) && result.place_id) {
+        const coords = await fetchPlaceCoords(result.place_id);
+        if (coords) enriched = { ...result, ...coords };
+      }
+      if (onSelectExternalPlace) onSelectExternalPlace(enriched);
     }
   };
 
@@ -117,10 +225,14 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
     if (onSelectExternalPlace) onSelectExternalPlace(null);
   };
 
-  // Returns the flat index into allResults for a given section-local result
+  // Returns the flat index into allResults for a given result (for highlight sync)
   const flatIndex = (result) => allResults.findIndex(
     (r) => (r.place_id && r.place_id === result.place_id) || (r.id && r.id === result.id)
   );
+
+  // ---------------------------------------------------------------------------
+  // Sub-components (defined inside so they close over flatIndex / highlightedIndex)
+  // ---------------------------------------------------------------------------
 
   const ResultRow = ({ result }) => {
     const idx = flatIndex(result);
@@ -207,6 +319,9 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
     </div>
   );
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
     <div ref={containerRef} style={{ position: "relative", flex: 1 }}>
 
@@ -295,7 +410,7 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
               {/* Section 1 — Pathable Locations */}
               {pathableResults.length > 0 && (
                 <>
-                  <SectionHeader label="Pathable Locations" count={pathableResults.length} />
+                  <SectionHeader label="Pathable Locations" />
                   {pathableResults.map((r) => <ResultRow key={r.id} result={r} />)}
                 </>
               )}
@@ -303,7 +418,7 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
               {/* Section 2 — Other Places */}
               {externalResults.length > 0 && (
                 <>
-                  <SectionHeader label="Other Places" count={externalResults.length} />
+                  <SectionHeader label="Other Places" />
                   {externalResults.map((r) => <ResultRow key={r.place_id} result={r} />)}
                 </>
               )}
