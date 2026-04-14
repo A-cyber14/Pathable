@@ -1,45 +1,89 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebase";
+import { getProfile } from "../services/api";
 
 // ---------------------------------------------------------------------------
 // AuthContext
-// Provides: currentUser, loginWithGoogle(), logout()
-// Used by: any component that needs to know if the user is signed in
+// Provides: currentUser, userProfile, profileLoading, loginWithGoogle(),
+//           logout(), refreshProfile()
+//
+// userProfile shape: { accountType, businessId, disabilityType,
+//                      featurePreferences, reviewCount, contributionCount }
+// userProfile is null while loading, and null when signed out.
+// accountType is null for brand-new users who haven't selected yet.
 // ---------------------------------------------------------------------------
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [loading, setLoading]         = useState(true);
+  const [currentUser,    setCurrentUser]    = useState(null);
+  const [userProfile,    setUserProfile]    = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [loading,        setLoading]        = useState(true);
 
-  // Listen for Firebase auth state changes — fires on sign in, sign out, and page reload
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setLoading(false);
-    });
-    return unsubscribe; // cleanup listener on unmount
+  // Fetch the Pathable profile for the currently signed-in user.
+  const fetchProfile = useCallback(async () => {
+    setProfileLoading(true);
+    try {
+      const profile = await getProfile();
+      setUserProfile(profile);
+    } catch {
+      // Failed to load profile — treat as empty so the app still works.
+      setUserProfile({});
+    } finally {
+      setProfileLoading(false);
+    }
   }, []);
 
-  // Sign in with Google popup
+  // Listen for Firebase auth state changes.
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        await fetchProfile();
+      } else {
+        setUserProfile(null);
+      }
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [fetchProfile]);
+
+  // Sign in with Google popup.
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
-    // onAuthStateChanged above will update currentUser automatically
+    // onAuthStateChanged above will call fetchProfile automatically.
   };
 
-  // Sign out
+  // Sign out and clear profile.
   const logout = async () => {
     await signOut(auth);
+    setUserProfile(null);
   };
 
-  // Don't render children until Firebase has resolved the initial auth state
+  // Call this after any operation that changes the user's Pathable profile
+  // (e.g. selecting account type, updating preferences).
+  const refreshProfile = useCallback(async () => {
+    if (!auth.currentUser) return;
+    await fetchProfile();
+  }, [fetchProfile]);
+
+  // Don't render children until Firebase has resolved the initial auth state.
   if (loading) return null;
 
   return (
-    <AuthContext.Provider value={{ currentUser, loginWithGoogle, logout }}>
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        userProfile,
+        profileLoading,
+        loginWithGoogle,
+        logout,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -47,7 +91,7 @@ export function AuthProvider({ children }) {
 
 // ---------------------------------------------------------------------------
 // useAuth — hook for consuming auth context in any component
-// Usage: const { currentUser, loginWithGoogle, logout } = useAuth();
+// Usage: const { currentUser, userProfile, refreshProfile } = useAuth();
 // ---------------------------------------------------------------------------
 
 export function useAuth() {

@@ -88,7 +88,7 @@ export default function ReviewModal({ reviews, onClose, onWriteReview }) {
                       <div>
                         <StarRating value={review.rating || 0} size={15} />
                         <p style={{ margin: "4px 0 0", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
-                          {review.reviewerName || "Anonymous"}
+                          {review.reviewerName || "Contributor"}
                         </p>
                       </div>
                       {dateLabel && (
@@ -98,6 +98,18 @@ export default function ReviewModal({ reviews, onClose, onWriteReview }) {
                     <p style={{ margin: 0, fontSize: "14px", color: "#374151", lineHeight: "1.55" }}>
                       "{review.comment}"
                     </p>
+
+                    {/* Business response */}
+                    {review.response && (
+                      <div style={{ marginTop: "10px", backgroundColor: "#f9fafb", border: "1px solid #f3f4f6", borderRadius: "8px", padding: "10px 12px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "3px" }}>
+                          Business Response
+                        </div>
+                        <p style={{ margin: 0, fontSize: "13px", color: "#374151", lineHeight: "1.5" }}>
+                          {review.response.message}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })}

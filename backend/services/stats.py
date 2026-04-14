@@ -5,8 +5,9 @@ Firestore write. Call this after any review, photo, or feature submission.
 Fields updated on the business document:
   community_score     — average star rating across approved reviews
   review_count        — number of approved reviews
+  photo_count         — number of photos currently in the photos subcollection
   contributors_count  — number of unique users who submitted approved reviews
-                        or photos (photos are visible immediately, so all are counted)
+                        or photos (counted from live photos subcollection, not contributions)
   last_updated        — ISO-8601 UTC timestamp of this update
 """
 
@@ -19,7 +20,7 @@ CONTRIBUTIONS_COLLECTION = "contributions"
 
 
 def recalculate_business_stats(business_id: str) -> None:
-    """Recompute community_score, review_count, contributors_count, and last_updated."""
+    """Recompute community_score, review_count, photo_count, contributors_count, and last_updated."""
 
     # ── Reviews ───────────────────────────────────────────────────────────────
     review_docs = list(
@@ -35,12 +36,18 @@ def recalculate_business_stats(business_id: str) -> None:
     review_count    = len(ratings)
     community_score = round(sum(ratings) / review_count, 1) if review_count > 0 else None
 
-    # ── Photo contributors (photos are visible immediately) ───────────────────
-    photo_docs = db.collection(CONTRIBUTIONS_COLLECTION) \
-        .where("businessId", "==", business_id) \
-        .where("type", "==", "photo") \
+    # ── Photos (read from the subcollection — the real source of truth) ─────────
+    # The contributions collection is an audit trail and may contain entries for
+    # photos that have since been deleted. Counting from the photos subcollection
+    # ensures the stats always reflect what is actually visible.
+    photo_docs = list(
+        db.collection(BUSINESSES_COLLECTION)
+        .document(business_id)
+        .collection("photos")
         .stream()
-    photo_uids = {d.to_dict().get("userId") for d in photo_docs if d.to_dict().get("userId")}
+    )
+    photo_uids  = {d.to_dict().get("uploadedBy") for d in photo_docs if d.to_dict().get("uploadedBy")}
+    photo_count = len(photo_docs)
 
     contributors_count = len(review_uids | photo_uids)
 
@@ -49,5 +56,6 @@ def recalculate_business_stats(business_id: str) -> None:
         "community_score":    community_score,
         "review_count":       review_count,
         "contributors_count": contributors_count,
+        "photo_count":        photo_count,
         "last_updated":       datetime.now(timezone.utc).isoformat(),
     })

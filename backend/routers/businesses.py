@@ -187,7 +187,77 @@ def search_unified(q: str = Query(..., description="Unified search query")):
             pass
 
     merged = db_results[:5] + places_results[:5]
+<<<<<<< HEAD
     return merged[:8]
+=======
+    return merged
+
+
+# ---------------------------------------------------------------------------
+# POST /api/businesses/create-from-external
+# Creates a new business from an external (Google Places) result.
+# Checks for duplicates first — by place_id, then by name+address similarity.
+# Must be registered BEFORE /{business_id} to avoid route shadowing.
+# ---------------------------------------------------------------------------
+
+class CreateFromExternalRequest(BaseModel):
+    name:     str
+    address:  str
+    lat:      Optional[float] = None
+    lng:      Optional[float] = None
+    place_id: Optional[str]   = None
+    wheelchair_accessible: Optional[bool] = None
+    accessible_parking:    Optional[bool] = None
+
+
+class CreateFromExternalResponse(BaseModel):
+    id:       str
+    existing: bool   # True if a duplicate was found — redirect to existing page
+
+
+@router.post("/create-from-external", response_model=CreateFromExternalResponse, status_code=200)
+def create_from_external(body: CreateFromExternalRequest):
+    name_lower = body.name.strip().lower()
+    addr_lower = body.address.strip().lower()
+
+    # 1. Exact match on Google place_id
+    if body.place_id:
+        docs = db.collection(COLLECTION).stream()
+        for doc in docs:
+            data = doc.to_dict()
+            gid = data.get("googlePlaceId") or data.get("place_id")
+            if gid == body.place_id:
+                return CreateFromExternalResponse(id=doc.id, existing=True)
+
+    # 2. Fuzzy name + address match — treat as duplicate if both substrings match
+    docs = db.collection(COLLECTION).stream()
+    for doc in docs:
+        data     = doc.to_dict()
+        s_name   = data.get("name",    "").lower()
+        s_addr   = data.get("address", "").lower()
+        name_hit = name_lower in s_name or s_name in name_lower
+        addr_hit = addr_lower in s_addr or s_addr in addr_lower
+        if name_hit and addr_hit:
+            return CreateFromExternalResponse(id=doc.id, existing=True)
+
+    # 3. No duplicate — create new business
+    new_id = uuid.uuid4().hex
+    now    = datetime.now(timezone.utc).isoformat()
+
+    db.collection(COLLECTION).document(new_id).set({
+        "name":                  body.name.strip(),
+        "address":               body.address.strip(),
+        "latitude":              body.lat  or 0.0,
+        "longitude":             body.lng  or 0.0,
+        "wheelchair_accessible": body.wheelchair_accessible if body.wheelchair_accessible is not None else False,
+        "accessible_parking":    body.accessible_parking    if body.accessible_parking    is not None else False,
+        "googlePlaceId":         body.place_id,
+        "last_updated":          now,
+        "source":                "user_submitted",
+    })
+
+    return CreateFromExternalResponse(id=new_id, existing=False)
+>>>>>>> c5bbae66a0043ca4f2751edc9bed64bf025b6fd3
 
 
 # ---------------------------------------------------------------------------
@@ -398,9 +468,16 @@ def get_business_reviews(business_id: str):
         if uid:
             try:
                 user_doc = db.collection("users").document(uid).get()
-                data["reviewerName"] = user_doc.to_dict().get("displayName", "Unknown user") if user_doc.exists else "Unknown user"
+                if user_doc.exists:
+                    udata = user_doc.to_dict()
+                    if udata.get("hideIdentity"):
+                        data["reviewerName"] = "Anonymous"
+                    else:
+                        data["reviewerName"] = udata.get("displayName") or udata.get("email") or "Contributor"
+                else:
+                    data["reviewerName"] = "Contributor"
             except Exception:
-                data["reviewerName"] = "Unknown user"
+                data["reviewerName"] = "Contributor"
         else:
             data["reviewerName"] = "Anonymous"
 
@@ -428,6 +505,26 @@ def get_business_photos(business_id: str):
         .stream()
     )
 
+    # Cache user lookups so we don't hit Firestore for every photo
+    user_cache: dict = {}
+
+    def resolve_uploader(uid: str | None) -> str:
+        if not uid:
+            return "Anonymous"
+        if uid not in user_cache:
+            try:
+                udoc = db.collection("users").document(uid).get()
+                if udoc.exists:
+                    udata = udoc.to_dict()
+                    user_cache[uid] = "Anonymous" if udata.get("hideIdentity") else (
+                        udata.get("displayName") or udata.get("email") or "Contributor"
+                    )
+                else:
+                    user_cache[uid] = "Contributor"
+            except Exception:
+                user_cache[uid] = "Contributor"
+        return user_cache[uid]
+
     results = []
     for doc in docs:
         data = doc.to_dict()
@@ -435,6 +532,7 @@ def get_business_photos(business_id: str):
         # Backward-compat: old records without mediaType are images
         if "mediaType" not in data:
             data["mediaType"] = "image"
+        data["uploaderName"] = resolve_uploader(data.get("uploadedBy"))
         results.append(data)
 
     # Newest-first so first item per category is the most recent upload
