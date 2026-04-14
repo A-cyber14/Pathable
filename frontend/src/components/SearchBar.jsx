@@ -17,6 +17,7 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
   const [dropdownVisible,  setDropdownVisible]  = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [loading,          setLoading]          = useState(false);
+  const [searchError,      setSearchError]      = useState(false);
 
   const debounceRef  = useRef(null);
   const containerRef = useRef(null);
@@ -58,10 +59,14 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
       setLoading(true);
       try {
         const data = await searchUnified(value);
+        setSearchError(false);
         setResults(data);
-        setDropdownVisible(data.length > 0 && value.trim().length >= 2);
-      } catch {
-        setDropdownVisible(false);
+        setDropdownVisible(value.trim().length >= 2);
+      } catch (err) {
+        console.error("[SearchBar] search-unified failed:", err?.message ?? err);
+        setSearchError(true);
+        setResults([]);
+        setDropdownVisible(true);
       } finally {
         setLoading(false);
       }
@@ -106,6 +111,7 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
   const clearSearch = () => {
     setQuery("");
     setResults([]);
+    setSearchError(false);
     setDropdownVisible(false);
     setHighlightedIndex(-1);
     if (onSelectExternalPlace) onSelectExternalPlace(null);
@@ -276,7 +282,11 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
             overflow:        "hidden",
           }}
         >
-          {allResults.length === 0 ? (
+          {searchError ? (
+            <div style={{ padding: "12px 16px", fontSize: "13px", color: "#dc2626" }}>
+              Search unavailable — check your connection and try again.
+            </div>
+          ) : allResults.length === 0 ? (
             <div style={{ padding: "12px 16px", fontSize: "14px", color: "#6b7280" }}>
               No results found
             </div>
