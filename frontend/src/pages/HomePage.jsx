@@ -373,7 +373,13 @@ export default function HomePage() {
         flexDirection:   "column",
         gap:             "8px",
       }}>
-        <SearchBar onSelectBusiness={handleSelectBusiness} />
+        <SearchBar
+          onSelectBusiness={handleSelectBusiness}
+          onSelectExternalPlace={(place) => {
+            setSelectedBusiness(null);
+            setSelectedExternalPlace(place);
+          }}
+        />
         <FilterChips activeFilters={activeFilters} onToggle={toggleFilter} />
       </div>
 

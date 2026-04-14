@@ -76,7 +76,7 @@ function AdminRoute({ children }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Navbar />
       <div style={{ marginLeft: "68px", height: "100vh" }}>
         <ProfileGate>

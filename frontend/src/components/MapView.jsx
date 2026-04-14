@@ -21,6 +21,19 @@ function scoreColor(score) {
   return "#dc2626";                      // red — low / limited
 }
 
+// Yellow pin used for external (non-Pathable) place previews
+// Defined as a function so it's evaluated after window.google is ready
+function PIN_YELLOW() {
+  return {
+    path:         window.google.maps.SymbolPath.CIRCLE,
+    fillColor:    "#f59e0b",
+    fillOpacity:  1,
+    strokeColor:  "#ffffff",
+    strokeWeight: 2,
+    scale:        11,
+  };
+}
+
 // Returns a Google Maps Symbol icon for a given state
 function buildIcon(score, isSelected, isTopMatch) {
   const fill   = isSelected ? "#2563eb" : scoreColor(score);
@@ -119,7 +132,7 @@ export default function MapView({ businesses = [], selectedBusiness, onSelectBus
         position: pos,
         map:      mapInstanceRef.current,
         title:    externalPlace.name,
-        icon:     PIN_YELLOW,
+        icon:     PIN_YELLOW(),
       });
       mapInstanceRef.current.panTo(pos);
       mapInstanceRef.current.setZoom(15);

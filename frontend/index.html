@@ -24,7 +24,7 @@
       const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
       if (key) {
         const script = document.createElement("script");
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&callback=__initGoogleMaps`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=__initGoogleMaps`;
         script.async = true;
         script.defer = true;
         document.head.appendChild(script);

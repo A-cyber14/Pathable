@@ -187,9 +187,6 @@ def search_unified(q: str = Query(..., description="Unified search query")):
             pass
 
     merged = db_results[:5] + places_results[:5]
-<<<<<<< HEAD
-    return merged[:8]
-=======
     return merged
 
 
@@ -257,7 +254,6 @@ def create_from_external(body: CreateFromExternalRequest):
     })
 
     return CreateFromExternalResponse(id=new_id, existing=False)
->>>>>>> c5bbae66a0043ca4f2751edc9bed64bf025b6fd3
 
 
 # ---------------------------------------------------------------------------
