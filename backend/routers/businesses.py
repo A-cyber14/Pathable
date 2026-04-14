@@ -43,7 +43,7 @@ def _enrich_score(data: dict) -> dict:
         data["accessibility_score"] = calculate_accessibility_score(
             b,
             review_count=data.get("review_count") or 0,
-            contribution_count=None,
+            contribution_count=data.get("contributors_count") or 0,
         )
     except Exception:
         data = dict(data)

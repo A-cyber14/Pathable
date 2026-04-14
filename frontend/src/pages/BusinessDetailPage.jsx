@@ -305,7 +305,12 @@ function calculatePathableScore(business, userPreferences = []) {
     ? Math.round((matchedCount / totalPrefs) * 100)
     : null;
 
+  // Only the 6 weighted features count toward the denominator — matches backend
+  // FEATURE_WEIGHTS (len = 6). The two zero-weight extras are shown in the
+  // breakdown UI but must not inflate the confidence divisor.
+  const WEIGHTED_FEATURE_COUNT = 6;
   const filledFields = features.filter((f) => {
+    if (f.weight === 0) return false;   // exclude zero-weight extras from count
     if (f.key === "entrance_width") return business.entrance_width_rating != null;
     return business[f.key] !== undefined && business[f.key] !== null;
   }).length;
@@ -320,9 +325,10 @@ function calculatePathableScore(business, userPreferences = []) {
     return 5;
   }
 
-  const featureConfidence = Math.round((filledFields / features.length) * 10);
-  const reviewConfidence  = volumeScore(business.review_count);
-  const confidenceRaw     = featureConfidence + reviewConfidence;
+  const featureConfidence      = Math.round((filledFields / WEIGHTED_FEATURE_COUNT) * 10);
+  const reviewConfidence       = volumeScore(business.review_count);
+  const contributionConfidence = volumeScore(business.contributors_count);
+  const confidenceRaw          = featureConfidence + reviewConfidence + contributionConfidence;
 
   const confidenceLabel =
     confidenceRaw >= 15 ? "High"   :
@@ -1610,12 +1616,6 @@ export default function BusinessDetailPage() {
           const myItems    = ALL_ITEMS.filter((i) => userFeatureKeys.has(i.key));
           const otherItems = ALL_ITEMS.filter((i) => !userFeatureKeys.has(i.key));
           const hasGroups  = myItems.length > 0;
-
-          const subHeadingStyle = {
-            fontSize: "11px", fontWeight: "700", color: "#6b7280",
-            textTransform: "uppercase", letterSpacing: "0.5px",
-            padding: "8px 0 4px",
-          };
 
           return (
             <>
