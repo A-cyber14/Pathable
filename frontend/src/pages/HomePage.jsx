@@ -56,7 +56,7 @@ function getTrustLabel(business) {
 }
 
 // ---------------------------------------------------------------------------
-//fixed update
+//fixed update v2
 // SelectedCard — compact floating preview for a Pathable business
 // ---------------------------------------------------------------------------
 function SelectedCard({ business, onClose }) {
