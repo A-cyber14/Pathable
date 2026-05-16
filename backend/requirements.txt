@@ -1,31 +1,8 @@
-# Pathable — Backend Dependencies
-# Install: pip install -r requirements.txt
-
-# ----------------------------
-# Web framework
-# ----------------------------
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
-
-# ----------------------------
-# Data validation (used by FastAPI)
-# ----------------------------
 pydantic==2.8.2
-
-# ----------------------------
-# Firebase Admin SDK
-# Covers: Firestore, Firebase Storage, Auth token verification
-# ----------------------------
 firebase-admin==6.5.0
-
-# ----------------------------
-# Environment variable loading
-# Reads .env into os.getenv()
-# ----------------------------
 python-dotenv==1.0.1
-
-# ----------------------------
-# Google Maps (Places API proxy — post-MVP, stubbed for now)
-# Already declared so the import won't fail when we wire it up
-# ----------------------------
 googlemaps==4.10.0
+httpx==0.27.0
+python-multipart==0.0.9
