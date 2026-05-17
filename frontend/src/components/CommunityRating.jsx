@@ -153,7 +153,6 @@ export default function CommunityRating({ businessId }) {
                     display:         "block",
                     width:           "100%",
                     padding:         "14px 20px",
-                    borderTop:       "1px solid #f3f4f6",
                     background:      "none",
                     border:          "none",
                     borderTop:       "1px solid #f3f4f6",
