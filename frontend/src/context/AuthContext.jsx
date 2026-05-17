@@ -53,7 +53,12 @@ export function AuthProvider({ children }) {
   // Sign in with Google popup.
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error("[Auth] Google sign-in failed:", err.code, err.message);
+      throw err;
+    }
     // onAuthStateChanged above will call fetchProfile automatically.
   };
 
