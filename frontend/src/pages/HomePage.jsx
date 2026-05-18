@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView      from "../components/MapView";
 import BusinessCard from "../components/BusinessCard";
@@ -60,14 +60,6 @@ function getTrustLabel(business) {
 // MobileDrawer — Google Maps-style bottom sheet for mobile
 // ---------------------------------------------------------------------------
 function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBusiness, onSelectBusiness, activeFilters }) {
-  const dragStartY = useRef(null);
-  const handleTouchStart = (e) => { dragStartY.current = e.touches[0].clientY; };
-  const handleTouchEnd   = (e) => {
-    if (dragStartY.current === null) return;
-    const delta = e.changedTouches[0].clientY - dragStartY.current;
-    if (delta > 50) onToggle(false);
-    dragStartY.current = null;
-  };
 
   // ── Collapsed: small floating pill bottom-left ──────────────────────────
   if (!isOpen) {
@@ -106,8 +98,6 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
   // ── Expanded: full-width bottom sheet ───────────────────────────────────
   return (
     <div
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
       style={{
         position:        "absolute",
         bottom:          0,
