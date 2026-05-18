@@ -159,25 +159,20 @@ export default function Navbar() {
       }}
     >
       {/* Logo */}
-      <div
+      <img
+        src="/logo.png"
+        alt="Pathable"
         title="Pathable"
         style={{
-          width:           "44px",
-          height:          "44px",
-          borderRadius:    "50%",
-          backgroundColor: "#2563eb",
-          display:         "flex",
-          alignItems:      "center",
-          justifyContent:  "center",
-          fontSize:        "20px",
-          color:           "#fff",
-          flexShrink:      0,
-          marginBottom:    "28px",
-          userSelect:      "none",
+          width:        "46px",
+          height:       "46px",
+          objectFit:    "contain",
+          flexShrink:   0,
+          marginBottom: "24px",
+          userSelect:   "none",
+          borderRadius: "8px",
         }}
-      >
-        ♿
-      </div>
+      />
 
       {/* Nav items */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>

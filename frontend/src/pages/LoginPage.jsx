@@ -54,8 +54,8 @@ export default function LoginPage() {
           boxShadow:       "0 4px 24px rgba(0,0,0,0.07)",
         }}
       >
-        {/* Pathable logo / icon */}
-        <div style={{ fontSize: "40px", marginBottom: "12px" }}>♿</div>
+        {/* Pathable logo */}
+        <img src="/logo.png" alt="Pathable" style={{ width: "72px", height: "72px", objectFit: "contain", marginBottom: "12px" }} />
 
         {/* Title */}
         <h1

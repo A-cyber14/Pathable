@@ -148,7 +148,7 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
       </div>
 
       {/* Scrollable list */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "0 12px 16px" }}>
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "0 12px 0", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" }}>
         <div style={{ display: "flex", gap: "10px", padding: "10px 0", overflowX: "auto" }}>
           {[
             { color: "#16a34a", label: "75+ High" },
@@ -186,7 +186,7 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
 // ---------------------------------------------------------------------------
 // SelectedCard — compact floating preview for a Pathable business
 // ---------------------------------------------------------------------------
-function SelectedCard({ business, onClose, bottomOffset = 20 }) {
+function SelectedCard({ business, onClose, bottomOffset = "20px" }) {
   const score      = business.accessibility_score;
   const scoreColor = score == null ? "#9ca3af" : score >= 75 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626";
   const scoreBg    = score == null ? "#f3f4f6" : score >= 75 ? "#f0fdf4" : score >= 50 ? "#fffbeb" : "#fef2f2";
@@ -206,7 +206,7 @@ function SelectedCard({ business, onClose, bottomOffset = 20 }) {
   return (
     <div style={{
       position:        "absolute",
-      bottom:          `${bottomOffset}px`,
+      bottom:          bottomOffset,
       left:            "50%",
       transform:       "translateX(-50%)",
       width:           "calc(100% - 40px)",
@@ -315,13 +315,13 @@ function SelectedCard({ business, onClose, bottomOffset = 20 }) {
 // ---------------------------------------------------------------------------
 // ExternalPlaceCard — floating preview for a non-Pathable external place
 // ---------------------------------------------------------------------------
-function ExternalPlaceCard({ place, onClose, bottomOffset = 20 }) {
+function ExternalPlaceCard({ place, onClose, bottomOffset = "20px" }) {
   const navigate = useNavigate();
 
   return (
     <div style={{
       position:        "absolute",
-      bottom:          `${bottomOffset}px`,
+      bottom:          bottomOffset,
       left:            "50%",
       transform:       "translateX(-50%)",
       width:           "calc(100% - 40px)",
@@ -498,7 +498,10 @@ export default function HomePage() {
 
   const filteredBusinesses = applyFilters(businesses, activeFilters);
 
-  const cardBottom = 20;
+  // On mobile: position card above the nav bar + safe-area, matching the pill logic
+  const cardBottom = isMobile
+    ? "calc(80px + env(safe-area-inset-bottom, 0px))"
+    : "20px";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "sans-serif" }}>
