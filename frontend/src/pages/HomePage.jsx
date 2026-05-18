@@ -73,16 +73,12 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
 
   return (
     <div style={{
-      position:        "absolute",
-      bottom:          0,
-      left:            0,
-      right:           0,
       height:          isOpen ? "65vh" : "54px",
+      flexShrink:      0,
       backgroundColor: "#fff",
       boxShadow:       "0 -3px 16px rgba(0,0,0,0.10)",
       transition:      "height 250ms ease-in-out",
       willChange:      "height",
-      zIndex:          20,
       overflow:        "hidden",
       display:         "flex",
       flexDirection:   "column",
@@ -98,8 +94,8 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
           display:         "flex",
           flexDirection:   "row",
           alignItems:      "center",
-          justifyContent:  "space-between",
-          padding:         "0 16px",
+          justifyContent:  "center",
+          gap:             "8px",
           cursor:          "pointer",
           flexShrink:      0,
           userSelect:      "none",
@@ -112,7 +108,7 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
         </span>
         {/* Chevron — up when collapsed, down when expanded */}
         <svg
-          width="20" height="20" viewBox="0 0 24 24"
+          width="18" height="18" viewBox="0 0 24 24"
           fill="none" stroke="#6b7280" strokeWidth="2.5"
           strokeLinecap="round" strokeLinejoin="round"
           style={{
@@ -482,8 +478,7 @@ export default function HomePage() {
 
   const filteredBusinesses = applyFilters(businesses, activeFilters);
 
-  // On mobile the floating cards sit just above the 54px drawer header
-  const cardBottom = isMobile ? 66 : 20;
+  const cardBottom = 20;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "sans-serif" }}>
@@ -512,10 +507,15 @@ export default function HomePage() {
       </div>
 
       {/* Main content */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{
+        display:       "flex",
+        flex:          1,
+        overflow:      "hidden",
+        flexDirection: isMobile ? "column" : "row",
+      }}>
 
-        {/* Map — always full-width on mobile, left side on desktop */}
-        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {/* Map — shrinks to give space to the in-flow drawer on mobile */}
+        <div style={{ flex: 1, position: "relative", overflow: "hidden", minHeight: 0 }}>
           <MapView
             businesses={filteredBusinesses}
             selectedBusiness={selectedBusiness}
@@ -524,7 +524,7 @@ export default function HomePage() {
             externalPlace={selectedExternalPlace}
           />
 
-          {/* Floating preview cards — hidden when mobile drawer is open */}
+          {/* Floating preview cards — hide while mobile drawer is open */}
           {(!isMobile || !drawerOpen) && selectedBusiness && (
             <SelectedCard
               business={selectedBusiness}
@@ -540,21 +540,21 @@ export default function HomePage() {
               bottomOffset={cardBottom}
             />
           )}
-
-          {/* Mobile bottom drawer */}
-          {isMobile && (
-            <MobileDrawer
-              isOpen={drawerOpen}
-              onToggle={setDrawerOpen}
-              loading={loading}
-              error={error}
-              businesses={filteredBusinesses}
-              selectedBusiness={selectedBusiness}
-              onSelectBusiness={handleSelectBusiness}
-              activeFilters={activeFilters}
-            />
-          )}
         </div>
+
+        {/* Mobile drawer — sibling of the map, in flex-column flow so it's always visible */}
+        {isMobile && (
+          <MobileDrawer
+            isOpen={drawerOpen}
+            onToggle={setDrawerOpen}
+            loading={loading}
+            error={error}
+            businesses={filteredBusinesses}
+            selectedBusiness={selectedBusiness}
+            onSelectBusiness={handleSelectBusiness}
+            activeFilters={activeFilters}
+          />
+        )}
 
         {/* Desktop right panel — hidden on mobile */}
         {!isMobile && (

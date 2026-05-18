@@ -82,7 +82,9 @@ export default function App() {
       <Navbar />
       <div style={{
         marginLeft: isMobile ? 0 : "68px",
-        height:     isMobile ? "calc(100vh - 64px)" : "100vh",
+        height:     isMobile
+          ? "calc(100vh - 64px - env(safe-area-inset-bottom, 0px))"
+          : "100vh",
       }}>
         <ProfileGate>
           <Routes>
