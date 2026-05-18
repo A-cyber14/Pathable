@@ -61,79 +61,93 @@ function getTrustLabel(business) {
 // ---------------------------------------------------------------------------
 function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBusiness, onSelectBusiness, activeFilters }) {
   const dragStartY = useRef(null);
-
   const handleTouchStart = (e) => { dragStartY.current = e.touches[0].clientY; };
   const handleTouchEnd   = (e) => {
     if (dragStartY.current === null) return;
     const delta = e.changedTouches[0].clientY - dragStartY.current;
-    if (delta < -40) onToggle(true);
-    if (delta >  40) onToggle(false);
+    if (delta > 50) onToggle(false);
     dragStartY.current = null;
   };
 
-  return (
-    <div style={{
-      position:        "absolute",
-      bottom:          0,
-      left:            0,
-      right:           0,
-      height:          isOpen ? "65vh" : "54px",
-      backgroundColor: "#fff",
-      boxShadow:       "0 -3px 16px rgba(0,0,0,0.10)",
-      transition:      "height 250ms ease-in-out",
-      willChange:      "height",
-      zIndex:          20,
-      overflow:        "hidden",
-      display:         "flex",
-      flexDirection:   "column",
-    }}>
-      {/* Full-width header — tap or drag to open/close */}
+  // ── Collapsed: small floating pill bottom-left ──────────────────────────
+  if (!isOpen) {
+    return (
       <div
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onClick={() => onToggle(!isOpen)}
+        onClick={() => onToggle(true)}
         style={{
-          width:           "100%",
-          height:          "54px",
+          position:        "absolute",
+          bottom:          "16px",
+          left:            "16px",
+          backgroundColor: "#fff",
+          borderRadius:    "999px",
+          padding:         "10px 16px",
+          boxShadow:       "0 4px 18px rgba(0,0,0,0.18)",
           display:         "flex",
-          flexDirection:   "row",
+          alignItems:      "center",
+          gap:             "7px",
+          cursor:          "pointer",
+          zIndex:          20,
+          userSelect:      "none",
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+          stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="18 15 12 9 6 15" />
+        </svg>
+        <span style={{ fontSize: "13px", fontWeight: "600", color: "#111827", whiteSpace: "nowrap" }}>
+          Accessible Places
+        </span>
+      </div>
+    );
+  }
+
+  // ── Expanded: full-width bottom sheet ───────────────────────────────────
+  return (
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        position:        "absolute",
+        bottom:          0,
+        left:            0,
+        right:           0,
+        height:          "65vh",
+        backgroundColor: "#fff",
+        borderRadius:    "16px 16px 0 0",
+        boxShadow:       "0 -4px 20px rgba(0,0,0,0.12)",
+        zIndex:          20,
+        overflow:        "hidden",
+        display:         "flex",
+        flexDirection:   "column",
+      }}
+    >
+      {/* Sheet header with close chevron */}
+      <div
+        onClick={() => onToggle(false)}
+        style={{
+          display:         "flex",
           alignItems:      "center",
           justifyContent:  "center",
           gap:             "8px",
-          cursor:          "pointer",
+          height:          "52px",
           flexShrink:      0,
+          cursor:          "pointer",
+          borderBottom:    "1px solid #f0f0f0",
           userSelect:      "none",
-          backgroundColor: "#fff",
-          borderTop:       "1.5px solid #e5e7eb",
         }}
       >
-        <span style={{ fontSize: "14px", fontWeight: "700", color: "#111827", letterSpacing: "0.1px" }}>
+        <span style={{ fontSize: "14px", fontWeight: "700", color: "#111827" }}>
           Accessible Places Near You
         </span>
-        {/* Chevron — up when collapsed, down when expanded */}
-        <svg
-          width="18" height="18" viewBox="0 0 24 24"
-          fill="none" stroke="#6b7280" strokeWidth="2.5"
-          strokeLinecap="round" strokeLinejoin="round"
-          style={{
-            transform:  isOpen ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 250ms ease-in-out",
-            flexShrink: 0,
-          }}
-        >
-          <polyline points="18 15 12 9 6 15" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9" />
         </svg>
       </div>
 
       {/* Scrollable list */}
-      <div style={{
-        flex:                     1,
-        overflowY:                "auto",
-        WebkitOverflowScrolling:  "touch",
-        padding:                  "0 12px 16px",
-      }}>
-        {/* Compact score legend */}
-        <div style={{ display: "flex", gap: "10px", padding: "0 0 10px", overflowX: "auto" }}>
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "0 12px 16px" }}>
+        <div style={{ display: "flex", gap: "10px", padding: "10px 0", overflowX: "auto" }}>
           {[
             { color: "#16a34a", label: "75+ High" },
             { color: "#d97706", label: "55–74 Good" },
@@ -482,8 +496,7 @@ export default function HomePage() {
 
   const filteredBusinesses = applyFilters(businesses, activeFilters);
 
-  // On mobile: float cards above the 54px drawer header with an 8px gap
-  const cardBottom = isMobile ? 62 : 20;
+  const cardBottom = 20;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "sans-serif" }}>
