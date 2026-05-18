@@ -73,12 +73,16 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
 
   return (
     <div style={{
+      position:        "absolute",
+      bottom:          0,
+      left:            0,
+      right:           0,
       height:          isOpen ? "65vh" : "54px",
-      flexShrink:      0,
       backgroundColor: "#fff",
       boxShadow:       "0 -3px 16px rgba(0,0,0,0.10)",
       transition:      "height 250ms ease-in-out",
       willChange:      "height",
+      zIndex:          20,
       overflow:        "hidden",
       display:         "flex",
       flexDirection:   "column",
@@ -478,7 +482,8 @@ export default function HomePage() {
 
   const filteredBusinesses = applyFilters(businesses, activeFilters);
 
-  const cardBottom = 20;
+  // On mobile: float cards above the 54px drawer header with an 8px gap
+  const cardBottom = isMobile ? 62 : 20;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "sans-serif" }}>
@@ -507,15 +512,10 @@ export default function HomePage() {
       </div>
 
       {/* Main content */}
-      <div style={{
-        display:       "flex",
-        flex:          1,
-        overflow:      "hidden",
-        flexDirection: isMobile ? "column" : "row",
-      }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
-        {/* Map — shrinks to give space to the in-flow drawer on mobile */}
-        <div style={{ flex: 1, position: "relative", overflow: "hidden", minHeight: 0 }}>
+        {/* Map + absolutely-positioned drawer overlay */}
+        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
           <MapView
             businesses={filteredBusinesses}
             selectedBusiness={selectedBusiness}
@@ -540,21 +540,23 @@ export default function HomePage() {
               bottomOffset={cardBottom}
             />
           )}
-        </div>
 
-        {/* Mobile drawer — sibling of the map, in flex-column flow so it's always visible */}
-        {isMobile && (
-          <MobileDrawer
-            isOpen={drawerOpen}
-            onToggle={setDrawerOpen}
-            loading={loading}
-            error={error}
-            businesses={filteredBusinesses}
-            selectedBusiness={selectedBusiness}
-            onSelectBusiness={handleSelectBusiness}
-            activeFilters={activeFilters}
-          />
-        )}
+          {/* Drawer: position:absolute anchors to the bottom of THIS container,
+              which ends exactly where the bottom nav begins (App height accounts
+              for 64px nav + env(safe-area-inset-bottom)). */}
+          {isMobile && (
+            <MobileDrawer
+              isOpen={drawerOpen}
+              onToggle={setDrawerOpen}
+              loading={loading}
+              error={error}
+              businesses={filteredBusinesses}
+              selectedBusiness={selectedBusiness}
+              onSelectBusiness={handleSelectBusiness}
+              activeFilters={activeFilters}
+            />
+          )}
+        </div>
 
         {/* Desktop right panel — hidden on mobile */}
         {!isMobile && (
