@@ -76,26 +76,28 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
         onClick={() => onToggle(true)}
         style={{
           position:        "absolute",
-          bottom:          "16px",
+          /* 80px clears the 64px nav + up to 34px iOS safe-area gap even when
+             env(safe-area-inset-bottom) fails to apply on the App wrapper.     */
+          bottom:          "calc(80px + env(safe-area-inset-bottom, 0px))",
           left:            "16px",
           backgroundColor: "#fff",
           borderRadius:    "999px",
-          padding:         "10px 16px",
+          padding:         "11px 18px 11px 14px",
           boxShadow:       "0 4px 18px rgba(0,0,0,0.18)",
           display:         "flex",
           alignItems:      "center",
-          gap:             "7px",
+          gap:             "8px",
           cursor:          "pointer",
           zIndex:          20,
           userSelect:      "none",
         }}
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
           stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="18 15 12 9 6 15" />
         </svg>
         <span style={{ fontSize: "13px", fontWeight: "600", color: "#111827", whiteSpace: "nowrap" }}>
-          Accessible Places
+          Accessible Places Near You
         </span>
       </div>
     );
