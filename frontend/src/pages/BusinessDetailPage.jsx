@@ -430,7 +430,7 @@ function PathableRatingBadge({ business, userPreferences }) {
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Data Confidence</span>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Data Accuracy</span>
                   <span style={{ fontSize: "13px", fontWeight: "700", color: s.confidenceColor }}>{s.confidenceLabel} ({s.confidenceRaw}/20)</span>
                 </div>
                 <ScoreBar value={s.confidenceRaw} max={20} color={s.confidenceColor} />
@@ -921,7 +921,7 @@ function DataConfidenceSection({ confidenceData, onContribute }) {
     <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "14px", padding: "20px", marginBottom: "28px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
         <span style={{ fontSize: "16px" }}>🛡️</span>
-        <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>Data Confidence</h2>
+        <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>Data Accuracy</h2>
         <span style={{
           fontSize: "11px", fontWeight: "700",
           color: level.color, backgroundColor: level.bg,

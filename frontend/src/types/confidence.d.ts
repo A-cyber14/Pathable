@@ -24,7 +24,7 @@ export interface AttributeConfidence {
 
 /**
  * Top-level trust/confidence summary for a business listing.
- * Shown in the "Data Confidence" section on BusinessDetailPage.
+ * Shown in the "Data Accuracy" section on BusinessDetailPage.
  */
 export interface BusinessConfidenceData {
   /** ISO-8601 date string of the most recent data update, or null if unknown */
