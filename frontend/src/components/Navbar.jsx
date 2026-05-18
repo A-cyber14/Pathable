@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 // ---------------------------------------------------------------------------
 // SVG icons — all use currentColor so active/hover tinting works automatically
@@ -48,19 +49,19 @@ function ShieldIcon() {
 // ---------------------------------------------------------------------------
 
 const USER_NAV_ITEMS = [
-  { path: "/profile",          icon: <PersonIcon />,       label: "Profile"          },
-  { path: "/",                 icon: <MapPinIcon />,        label: "Map"              },
-  { path: "/bookmarks",        icon: <BookmarkSVGIcon />,   label: "Bookmarks"        },
+  { path: "/profile",          icon: <PersonIcon />,       label: "Profile",  shortLabel: "Profile"  },
+  { path: "/",                 icon: <MapPinIcon />,        label: "Map",      shortLabel: "Home"     },
+  { path: "/bookmarks",        icon: <BookmarkSVGIcon />,   label: "Bookmarks",shortLabel: "Saved"    },
 ];
 
 const BUSINESS_NAV_ITEMS = [
-  { path: "/business-profile", icon: <PersonIcon />,        label: "Business Profile" },
-  { path: "/",                 icon: <MapPinIcon />,         label: "Map"              },
+  { path: "/business-profile", icon: <PersonIcon />,        label: "Business Profile", shortLabel: "Profile" },
+  { path: "/",                 icon: <MapPinIcon />,         label: "Map",              shortLabel: "Home"    },
 ];
 
 const ADMIN_NAV_ITEMS = [
-  { path: "/admin",            icon: <ShieldIcon />,         label: "Admin"            },
-  { path: "/",                 icon: <MapPinIcon />,         label: "Map"              },
+  { path: "/admin",            icon: <ShieldIcon />,         label: "Admin",  shortLabel: "Admin" },
+  { path: "/",                 icon: <MapPinIcon />,         label: "Map",    shortLabel: "Home"  },
 ];
 
 // Pages where the sidebar should be hidden (sign-in + onboarding).
@@ -74,6 +75,7 @@ export default function Navbar() {
   const location = useLocation();
   const [hovered, setHovered] = useState(null);
   const { userProfile } = useAuth();
+  const isMobile = useIsMobile();
 
   if (HIDDEN_PATHS.includes(location.pathname)) return null;
 
@@ -86,6 +88,58 @@ export default function Navbar() {
   const isActive = (path) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
 
+  // --- Mobile: fixed bottom nav bar ---
+  if (isMobile) {
+    return (
+      <nav style={{
+        position:        "fixed",
+        bottom:          0,
+        left:            0,
+        right:           0,
+        height:          "64px",
+        backgroundColor: "#fff",
+        borderTop:       "1px solid #f0f0f0",
+        boxShadow:       "0 -2px 12px rgba(0,0,0,0.06)",
+        display:         "flex",
+        alignItems:      "center",
+        justifyContent:  "space-around",
+        paddingBottom:   "env(safe-area-inset-bottom, 0)",
+        zIndex:          100,
+      }}>
+        {navItems.map(({ path, icon, shortLabel, label }) => {
+          const active = isActive(path);
+          return (
+            <Link
+              key={path}
+              to={path}
+              style={{
+                display:        "flex",
+                flexDirection:  "column",
+                alignItems:     "center",
+                gap:            "3px",
+                color:          active ? "#2563eb" : "#9ca3af",
+                textDecoration: "none",
+                padding:        "6px 20px",
+                minWidth:       "56px",
+                transition:     "color 0.15s",
+              }}
+            >
+              {icon}
+              <span style={{
+                fontSize:    "10px",
+                fontWeight:  active ? "600" : "400",
+                letterSpacing: "0.1px",
+              }}>
+                {shortLabel || label}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+    );
+  }
+
+  // --- Desktop: fixed left sidebar ---
   return (
     <div
       style={{

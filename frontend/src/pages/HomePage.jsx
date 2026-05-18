@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView      from "../components/MapView";
 import BusinessCard from "../components/BusinessCard";
 import SearchBar    from "../components/SearchBar";
 import { getTopRated } from "../services/api";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 // ---------------------------------------------------------------------------
 // Filter chip config
@@ -56,10 +57,107 @@ function getTrustLabel(business) {
 }
 
 // ---------------------------------------------------------------------------
-//fixed update v2
+// MobileDrawer — Google Maps-style bottom sheet for mobile
+// ---------------------------------------------------------------------------
+function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBusiness, onSelectBusiness, activeFilters }) {
+  const dragStartY = useRef(null);
+
+  const handleTouchStart = (e) => { dragStartY.current = e.touches[0].clientY; };
+  const handleTouchEnd   = (e) => {
+    if (dragStartY.current === null) return;
+    const delta = e.changedTouches[0].clientY - dragStartY.current;
+    if (delta < -40) onToggle(true);
+    if (delta >  40) onToggle(false);
+    dragStartY.current = null;
+  };
+
+  return (
+    <div style={{
+      position:        "absolute",
+      bottom:          0,
+      left:            0,
+      right:           0,
+      height:          isOpen ? "65vh" : "52px",
+      backgroundColor: "#fff",
+      borderRadius:    "16px 16px 0 0",
+      boxShadow:       "0 -4px 20px rgba(0,0,0,0.10)",
+      transition:      "height 250ms ease-in-out",
+      willChange:      "height",
+      zIndex:          20,
+      overflow:        "hidden",
+      display:         "flex",
+      flexDirection:   "column",
+    }}>
+      {/* Drag handle + label */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onClick={() => onToggle(!isOpen)}
+        style={{
+          width:         "100%",
+          height:        "52px",
+          display:       "flex",
+          flexDirection: "column",
+          alignItems:    "center",
+          justifyContent:"center",
+          gap:           "5px",
+          cursor:        "pointer",
+          flexShrink:    0,
+          userSelect:    "none",
+        }}
+      >
+        <div style={{ width: "36px", height: "4px", borderRadius: "2px", backgroundColor: "#d1d5db" }} />
+        <span style={{ fontSize: "12px", fontWeight: "600", color: "#374151" }}>
+          Accessible Places {isOpen ? "↓" : "↑"}
+        </span>
+      </div>
+
+      {/* Scrollable list */}
+      <div style={{
+        flex:                     1,
+        overflowY:                "auto",
+        WebkitOverflowScrolling:  "touch",
+        padding:                  "0 12px 16px",
+      }}>
+        {/* Compact score legend */}
+        <div style={{ display: "flex", gap: "10px", padding: "0 0 10px", overflowX: "auto" }}>
+          {[
+            { color: "#16a34a", label: "75+ High" },
+            { color: "#d97706", label: "55–74 Good" },
+            { color: "#dc2626", label: "< 55 Low" },
+            { color: "#9ca3af", label: "No data" },
+          ].map(({ color, label }) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
+              <span style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: color, display: "inline-block" }} />
+              <span style={{ fontSize: "10px", color: "#6b7280" }}>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {loading && <p style={{ color: "#6b7280", fontSize: "13px" }}>Loading locations…</p>}
+        {error   && <p style={{ color: "#dc2626", fontSize: "13px" }}>Error: {error}</p>}
+        {!loading && !error && businesses.length === 0 && (
+          <EmptyState hasFilters={activeFilters.size > 0} />
+        )}
+        {!loading && !error && businesses.map((business, index) => (
+          <BusinessCard
+            key={business.id}
+            business={business}
+            isSelected={selectedBusiness?.id === business.id}
+            onClick={() => onSelectBusiness(business)}
+            rank={index + 1}
+            compact
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SelectedCard — compact floating preview for a Pathable business
 // ---------------------------------------------------------------------------
-function SelectedCard({ business, onClose }) {
+function SelectedCard({ business, onClose, bottomOffset = 20 }) {
   const score      = business.accessibility_score;
   const scoreColor = score == null ? "#9ca3af" : score >= 75 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626";
   const scoreBg    = score == null ? "#f3f4f6" : score >= 75 ? "#f0fdf4" : score >= 50 ? "#fffbeb" : "#fef2f2";
@@ -79,7 +177,7 @@ function SelectedCard({ business, onClose }) {
   return (
     <div style={{
       position:        "absolute",
-      bottom:          "20px",
+      bottom:          `${bottomOffset}px`,
       left:            "50%",
       transform:       "translateX(-50%)",
       width:           "calc(100% - 40px)",
@@ -188,13 +286,13 @@ function SelectedCard({ business, onClose }) {
 // ---------------------------------------------------------------------------
 // ExternalPlaceCard — floating preview for a non-Pathable external place
 // ---------------------------------------------------------------------------
-function ExternalPlaceCard({ place, onClose }) {
+function ExternalPlaceCard({ place, onClose, bottomOffset = 20 }) {
   const navigate = useNavigate();
 
   return (
     <div style={{
       position:        "absolute",
-      bottom:          "20px",
+      bottom:          `${bottomOffset}px`,
       left:            "50%",
       transform:       "translateX(-50%)",
       width:           "calc(100% - 40px)",
@@ -296,9 +394,16 @@ function EmptyState({ hasFilters }) {
 // ---------------------------------------------------------------------------
 // FilterChips
 // ---------------------------------------------------------------------------
-function FilterChips({ activeFilters, onToggle }) {
+function FilterChips({ activeFilters, onToggle, isMobile }) {
   return (
-    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+    <div style={{
+      display:        "flex",
+      gap:            "6px",
+      flexWrap:       isMobile ? "nowrap" : "wrap",
+      overflowX:      isMobile ? "auto" : "visible",
+      scrollbarWidth: "none",
+      msOverflowStyle: "none",
+    }}>
       {FILTER_CHIPS.map(({ key, label }) => {
         const active = activeFilters.has(key);
         return (
@@ -330,12 +435,15 @@ function FilterChips({ activeFilters, onToggle }) {
 // HomePage
 // ---------------------------------------------------------------------------
 export default function HomePage() {
+  const isMobile = useIsMobile();
+
   const [businesses,            setBusinesses]            = useState([]);
   const [selectedBusiness,      setSelectedBusiness]      = useState(null);
   const [selectedExternalPlace, setSelectedExternalPlace] = useState(null);
   const [loading,               setLoading]               = useState(true);
   const [error,                 setError]                 = useState(null);
   const [activeFilters,         setActiveFilters]         = useState(new Set());
+  const [drawerOpen,            setDrawerOpen]            = useState(false);
 
   useEffect(() => {
     getTopRated()
@@ -347,6 +455,7 @@ export default function HomePage() {
   const handleSelectBusiness = (business) => {
     setSelectedExternalPlace(null);
     setSelectedBusiness((prev) => (prev?.id === business.id ? null : business));
+    if (isMobile) setDrawerOpen(false);
   };
 
   const toggleFilter = (key) => {
@@ -360,12 +469,15 @@ export default function HomePage() {
 
   const filteredBusinesses = applyFilters(businesses, activeFilters);
 
+  // On mobile the floating cards sit just above the drawer handle
+  const cardBottom = isMobile ? 62 : 20;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "sans-serif" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "sans-serif" }}>
 
       {/* Top bar — search + filter chips */}
       <div style={{
-        padding:         "10px 20px",
+        padding:         isMobile ? "8px 12px" : "10px 20px",
         backgroundColor: "#f9fafb",
         borderBottom:    "1px solid #f0f0f0",
         zIndex:          10,
@@ -373,21 +485,23 @@ export default function HomePage() {
         display:         "flex",
         flexDirection:   "column",
         gap:             "8px",
+        flexShrink:      0,
       }}>
         <SearchBar
           onSelectBusiness={handleSelectBusiness}
           onSelectExternalPlace={(place) => {
             setSelectedBusiness(null);
             setSelectedExternalPlace(place);
+            if (isMobile) setDrawerOpen(false);
           }}
         />
-        <FilterChips activeFilters={activeFilters} onToggle={toggleFilter} />
+        <FilterChips activeFilters={activeFilters} onToggle={toggleFilter} isMobile={isMobile} />
       </div>
 
       {/* Main content */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
-        {/* Left — map with floating preview card */}
+        {/* Map — always full-width on mobile, left side on desktop */}
         <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
           <MapView
             businesses={filteredBusinesses}
@@ -397,81 +511,103 @@ export default function HomePage() {
             externalPlace={selectedExternalPlace}
           />
 
-          {selectedBusiness && (
-            <SelectedCard business={selectedBusiness} onClose={() => setSelectedBusiness(null)} />
+          {/* Floating preview cards — hidden when mobile drawer is open */}
+          {(!isMobile || !drawerOpen) && selectedBusiness && (
+            <SelectedCard
+              business={selectedBusiness}
+              onClose={() => setSelectedBusiness(null)}
+              bottomOffset={cardBottom}
+            />
           )}
 
-          {selectedExternalPlace && !selectedBusiness && (
+          {(!isMobile || !drawerOpen) && selectedExternalPlace && !selectedBusiness && (
             <ExternalPlaceCard
               place={selectedExternalPlace}
               onClose={() => setSelectedExternalPlace(null)}
+              bottomOffset={cardBottom}
+            />
+          )}
+
+          {/* Mobile bottom drawer */}
+          {isMobile && (
+            <MobileDrawer
+              isOpen={drawerOpen}
+              onToggle={setDrawerOpen}
+              loading={loading}
+              error={error}
+              businesses={filteredBusinesses}
+              selectedBusiness={selectedBusiness}
+              onSelectBusiness={handleSelectBusiness}
+              activeFilters={activeFilters}
             />
           )}
         </div>
 
-        {/* Right — ranked business list */}
-        <div style={{
-          width:           "340px",
-          overflowY:       "auto",
-          borderLeft:      "1px solid #ebebeb",
-          padding:         "16px 12px",
-          backgroundColor: "#f9fafb",
-        }}>
-
-          {/* Panel header */}
-          <div style={{ marginBottom: "14px" }}>
-            <h2 style={{ margin: "0 0 2px", fontSize: "13px", fontWeight: "700", color: "#111827", letterSpacing: "0.1px" }}>
-              Accessible Places Near You
-            </h2>
-            <p style={{ margin: 0, fontSize: "11px", color: "#9ca3af" }}>
-              {activeFilters.size > 0
-                ? `Filtered by ${activeFilters.size} need${activeFilters.size > 1 ? "s" : ""} · ranked by Pathable score`
-                : "Ranked by Pathable score · tap a card to preview"}
-            </p>
-          </div>
-
-          {/* Score legend */}
+        {/* Desktop right panel — hidden on mobile */}
+        {!isMobile && (
           <div style={{
-            display:         "flex",
-            gap:             "10px",
-            padding:         "7px 10px",
-            backgroundColor: "#fff",
-            borderRadius:    "8px",
-            border:          "1px solid #f0f0f0",
-            marginBottom:    "12px",
+            width:           "340px",
+            overflowY:       "auto",
+            borderLeft:      "1px solid #ebebeb",
+            padding:         "16px 12px",
+            backgroundColor: "#f9fafb",
           }}>
-            {[
-              { color: "#16a34a", label: "75+ High" },
-              { color: "#d97706", label: "55–74 Good" },
-              { color: "#dc2626", label: "< 55 Low" },
-              { color: "#9ca3af", label: "No data" },
-            ].map(({ color, label }) => (
-              <div key={label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <span style={{
-                  width: "8px", height: "8px", borderRadius: "50%",
-                  backgroundColor: color, display: "inline-block", flexShrink: 0,
-                }} />
-                <span style={{ fontSize: "10px", color: "#6b7280" }}>{label}</span>
-              </div>
+
+            {/* Panel header */}
+            <div style={{ marginBottom: "14px" }}>
+              <h2 style={{ margin: "0 0 2px", fontSize: "13px", fontWeight: "700", color: "#111827", letterSpacing: "0.1px" }}>
+                Accessible Places Near You
+              </h2>
+              <p style={{ margin: 0, fontSize: "11px", color: "#9ca3af" }}>
+                {activeFilters.size > 0
+                  ? `Filtered by ${activeFilters.size} need${activeFilters.size > 1 ? "s" : ""} · ranked by Pathable score`
+                  : "Ranked by Pathable score · tap a card to preview"}
+              </p>
+            </div>
+
+            {/* Score legend */}
+            <div style={{
+              display:         "flex",
+              gap:             "10px",
+              padding:         "7px 10px",
+              backgroundColor: "#fff",
+              borderRadius:    "8px",
+              border:          "1px solid #f0f0f0",
+              marginBottom:    "12px",
+            }}>
+              {[
+                { color: "#16a34a", label: "75+ High" },
+                { color: "#d97706", label: "55–74 Good" },
+                { color: "#dc2626", label: "< 55 Low" },
+                { color: "#9ca3af", label: "No data" },
+              ].map(({ color, label }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span style={{
+                    width: "8px", height: "8px", borderRadius: "50%",
+                    backgroundColor: color, display: "inline-block", flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: "10px", color: "#6b7280" }}>{label}</span>
+                </div>
+              ))}
+            </div>
+
+            {loading && <p style={{ color: "#6b7280", fontSize: "14px" }}>Loading locations...</p>}
+            {error   && <p style={{ color: "#dc2626", fontSize: "14px" }}>Error: {error}</p>}
+            {!loading && !error && filteredBusinesses.length === 0 && (
+              <EmptyState hasFilters={activeFilters.size > 0} />
+            )}
+            {!loading && !error && filteredBusinesses.map((business, index) => (
+              <BusinessCard
+                key={business.id}
+                business={business}
+                isSelected={selectedBusiness?.id === business.id}
+                onClick={() => handleSelectBusiness(business)}
+                rank={index + 1}
+              />
             ))}
+
           </div>
-
-          {loading && <p style={{ color: "#6b7280", fontSize: "14px" }}>Loading locations...</p>}
-          {error   && <p style={{ color: "#dc2626", fontSize: "14px" }}>Error: {error}</p>}
-          {!loading && !error && filteredBusinesses.length === 0 && (
-            <EmptyState hasFilters={activeFilters.size > 0} />
-          )}
-          {!loading && !error && filteredBusinesses.map((business, index) => (
-            <BusinessCard
-              key={business.id}
-              business={business}
-              isSelected={selectedBusiness?.id === business.id}
-              onClick={() => handleSelectBusiness(business)}
-              rank={index + 1}
-            />
-          ))}
-
-        </div>
+        )}
       </div>
     </div>
   );

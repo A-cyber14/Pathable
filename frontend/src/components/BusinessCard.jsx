@@ -94,7 +94,7 @@ function getEvidenceItems(business) {
 // BusinessCard
 // ---------------------------------------------------------------------------
 
-export default function BusinessCard({ business, isSelected = false, onClick, rank }) {
+export default function BusinessCard({ business, isSelected = false, onClick, rank, compact = false }) {
   const [hovered, setHovered] = useState(false);
   const {
     name,
@@ -105,6 +105,7 @@ export default function BusinessCard({ business, isSelected = false, onClick, ra
   const category  = getCategory(name);
   const trust     = getTrustSignal(business);
   const evidence  = getEvidenceItems(business);
+  const compactTags = evidence.filter(e => !e.meta).slice(0, 2);
 
   // Score color/bg
   const scoreColor = accessibility_score == null ? "#9ca3af"
@@ -129,9 +130,9 @@ export default function BusinessCard({ business, isSelected = false, onClick, ra
       style={{
         backgroundColor: "#fff",
         border:          `1px solid ${isSelected ? "#2563eb" : hovered ? "#d1d5db" : "#ebebeb"}`,
-        borderRadius:    "14px",
-        padding:         "13px 15px",
-        marginBottom:    "8px",
+        borderRadius:    compact ? "12px" : "14px",
+        padding:         compact ? "10px 12px" : "13px 15px",
+        marginBottom:    compact ? "6px" : "8px",
         cursor:          "pointer",
         boxShadow:       isSelected
           ? "0 0 0 3px rgba(37,99,235,0.10), 0 2px 8px rgba(0,0,0,0.07)"
@@ -224,66 +225,92 @@ export default function BusinessCard({ business, isSelected = false, onClick, ra
             </span>
           </div>
 
-          {/* Row 3 — evidence tags */}
-          {evidence.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
-              {evidence.map(({ text, positive, meta }) => {
-                const tagColor = meta
-                  ? "#9ca3af"
-                  : positive === true  ? "#16a34a"
-                  : positive === false ? "#dc2626"
-                  : "#6b7280";
-                const tagBg = meta
-                  ? "#f9fafb"
-                  : positive === true  ? "#f0fdf4"
-                  : positive === false ? "#fef2f2"
-                  : "#f3f4f6";
-                return (
+          {/* Row 3 — evidence tags (full) or compact access tags */}
+          {compact ? (
+            compactTags.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                {compactTags.map(({ text, positive }) => (
                   <span key={text} style={{
                     fontSize:        "11px",
-                    fontWeight:      meta ? "400" : "500",
+                    fontWeight:      "500",
                     padding:         "2px 7px",
                     borderRadius:    "999px",
-                    backgroundColor: tagBg,
-                    color:           tagColor,
+                    backgroundColor: positive === true ? "#f0fdf4" : positive === false ? "#fef2f2" : "#f3f4f6",
+                    color:           positive === true ? "#16a34a" : positive === false ? "#dc2626" : "#6b7280",
                     display:         "flex",
                     alignItems:      "center",
                     gap:             "3px",
                   }}>
-                    {!meta && positive === true  && <span style={{ fontSize: "9px" }}>✓</span>}
-                    {!meta && positive === false && <span style={{ fontSize: "9px" }}>✗</span>}
+                    {positive === true  && <span style={{ fontSize: "9px" }}>✓</span>}
+                    {positive === false && <span style={{ fontSize: "9px" }}>✗</span>}
                     {text}
                   </span>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            )
+          ) : (
+            <>
+              {evidence.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
+                  {evidence.map(({ text, positive, meta }) => {
+                    const tagColor = meta
+                      ? "#9ca3af"
+                      : positive === true  ? "#16a34a"
+                      : positive === false ? "#dc2626"
+                      : "#6b7280";
+                    const tagBg = meta
+                      ? "#f9fafb"
+                      : positive === true  ? "#f0fdf4"
+                      : positive === false ? "#fef2f2"
+                      : "#f3f4f6";
+                    return (
+                      <span key={text} style={{
+                        fontSize:        "11px",
+                        fontWeight:      meta ? "400" : "500",
+                        padding:         "2px 7px",
+                        borderRadius:    "999px",
+                        backgroundColor: tagBg,
+                        color:           tagColor,
+                        display:         "flex",
+                        alignItems:      "center",
+                        gap:             "3px",
+                      }}>
+                        {!meta && positive === true  && <span style={{ fontSize: "9px" }}>✓</span>}
+                        {!meta && positive === false && <span style={{ fontSize: "9px" }}>✗</span>}
+                        {text}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
 
-          {/* Row 4 — trust signal */}
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <span style={{
-              fontSize:        "10px",
-              fontWeight:      "500",
-              color:           trust.color,
-              backgroundColor: trust.bg,
-              borderRadius:    "4px",
-              padding:         "1px 6px",
-            }}>
-              {trust.label}
-            </span>
-            {rank === 1 && (
-              <span style={{
-                fontSize:        "10px",
-                fontWeight:      "600",
-                color:           "#92400e",
-                backgroundColor: "#fef3c7",
-                borderRadius:    "4px",
-                padding:         "1px 6px",
-              }}>
-                Top match
-              </span>
-            )}
-          </div>
+              {/* Row 4 — trust signal */}
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{
+                  fontSize:        "10px",
+                  fontWeight:      "500",
+                  color:           trust.color,
+                  backgroundColor: trust.bg,
+                  borderRadius:    "4px",
+                  padding:         "1px 6px",
+                }}>
+                  {trust.label}
+                </span>
+                {rank === 1 && (
+                  <span style={{
+                    fontSize:        "10px",
+                    fontWeight:      "600",
+                    color:           "#92400e",
+                    backgroundColor: "#fef3c7",
+                    borderRadius:    "4px",
+                    padding:         "1px 6px",
+                  }}>
+                    Top match
+                  </span>
+                )}
+              </div>
+            </>
+          )}
 
         </div>
       </div>

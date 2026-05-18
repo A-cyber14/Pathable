@@ -16,6 +16,7 @@ import AdminPage              from "./pages/AdminPage";
 import ProtectedRoute         from "./components/ProtectedRoute";
 import Navbar                 from "./components/Navbar";
 import { useAuth }            from "./context/AuthContext";
+import { useIsMobile }        from "./hooks/useIsMobile";
 
 // ---------------------------------------------------------------------------
 // ProfileGate
@@ -75,10 +76,14 @@ function AdminRoute({ children }) {
 // ---------------------------------------------------------------------------
 
 export default function App() {
+  const isMobile = useIsMobile();
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Navbar />
-      <div style={{ marginLeft: "68px", height: "100vh" }}>
+      <div style={{
+        marginLeft: isMobile ? 0 : "68px",
+        height:     isMobile ? "calc(100vh - 64px)" : "100vh",
+      }}>
         <ProfileGate>
           <Routes>
             {/* Public */}
