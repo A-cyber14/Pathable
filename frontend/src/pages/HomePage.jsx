@@ -540,7 +540,7 @@ export default function HomePage() {
           />
 
           {/* Floating preview cards — hide while mobile drawer is open */}
-          {(!isMobile || !drawerOpen) && selectedBusiness && (
+          {selectedBusiness && (
             <SelectedCard
               business={selectedBusiness}
               onClose={() => setSelectedBusiness(null)}
@@ -548,7 +548,7 @@ export default function HomePage() {
             />
           )}
 
-          {(!isMobile || !drawerOpen) && selectedExternalPlace && !selectedBusiness && (
+          {selectedExternalPlace && !selectedBusiness && (
             <ExternalPlaceCard
               place={selectedExternalPlace}
               onClose={() => setSelectedExternalPlace(null)}
@@ -556,10 +556,8 @@ export default function HomePage() {
             />
           )}
 
-          {/* Drawer: position:absolute anchors to the bottom of THIS container,
-              which ends exactly where the bottom nav begins (App height accounts
-              for 64px nav + env(safe-area-inset-bottom)). */}
-          {isMobile && (
+          {/* Hide the drawer pill whenever a location card is visible */}
+          {isMobile && !selectedBusiness && !selectedExternalPlace && (
             <MobileDrawer
               isOpen={drawerOpen}
               onToggle={setDrawerOpen}
