@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBookmarks, removeBookmark } from "../services/api";
+import { useIsMobile } from "../hooks/useIsMobile";
 
-function BookmarkCard({ business, onRemove }) {
+function BookmarkCard({ business, onRemove, compact = false }) {
   const navigate = useNavigate();
   const [removing, setRemoving] = useState(false);
   const [hovered,  setHovered]  = useState(false);
@@ -37,7 +38,7 @@ function BookmarkCard({ business, onRemove }) {
         backgroundColor: hovered ? "#fafafa" : "#fff",
         border:          `1px solid ${hovered ? "#d1d5db" : "#e5e7eb"}`,
         borderRadius:    "14px",
-        padding:         "18px 20px",
+        padding:         compact ? "14px 16px" : "18px 20px",
         display:         "flex",
         flexDirection:   "column",
         gap:             "8px",
@@ -104,6 +105,7 @@ function BookmarkCard({ business, onRemove }) {
 // ---------------------------------------------------------------------------
 
 export default function BookmarksPage() {
+  const isMobile = useIsMobile();
   const [bookmarks, setBookmarks] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
@@ -121,10 +123,10 @@ export default function BookmarksPage() {
   };
 
   return (
-    <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: "32px 24px" }}>
+    <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: isMobile ? "20px 16px" : "32px 24px" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto" }}>
 
-        <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#111827", margin: "0 0 20px" }}>
+        <h1 style={{ fontSize: isMobile ? "20px" : "22px", fontWeight: "700", color: "#111827", margin: "0 0 16px" }}>
           Bookmarks
         </h1>
 
@@ -143,13 +145,12 @@ export default function BookmarksPage() {
           </div>
         )}
 
-        {/* 2-column grid — Image 2 */}
         {!loading && !error && bookmarks.length > 0 && (
           <div
             style={{
               display:             "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap:                 "16px",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
+              gap:                 isMobile ? "12px" : "16px",
             }}
           >
             {bookmarks.map((business) => (
@@ -157,6 +158,7 @@ export default function BookmarksPage() {
                 key={business.id}
                 business={business}
                 onRemove={handleRemove}
+                compact={isMobile}
               />
             ))}
           </div>
