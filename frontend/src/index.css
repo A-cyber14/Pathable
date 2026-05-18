@@ -81,3 +81,15 @@ html.high-contrast *:focus-visible {
 html.larger-text.high-contrast *:focus-visible {
   outline-width: 4px !important;
 }
+
+/* ==========================================================================
+   Mobile bottom-nav safe spacing (screens ≤ 767px)
+   Targets every page-level container that uses min-height:100vh so the last
+   list item / card is never hidden behind the fixed 64px bottom nav bar.
+   The 90px = 64px nav + ~26px breathing room; env() adds iOS home-indicator.
+   ========================================================================== */
+@media (max-width: 767px) {
+  div[style*="min-height: 100vh"] {
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}

@@ -77,10 +77,9 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
       bottom:          0,
       left:            0,
       right:           0,
-      height:          isOpen ? "65vh" : "52px",
+      height:          isOpen ? "65vh" : "54px",
       backgroundColor: "#fff",
-      borderRadius:    "16px 16px 0 0",
-      boxShadow:       "0 -4px 20px rgba(0,0,0,0.10)",
+      boxShadow:       "0 -3px 16px rgba(0,0,0,0.10)",
       transition:      "height 250ms ease-in-out",
       willChange:      "height",
       zIndex:          20,
@@ -88,28 +87,42 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
       display:         "flex",
       flexDirection:   "column",
     }}>
-      {/* Drag handle + label */}
+      {/* Full-width header — tap or drag to open/close */}
       <div
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onClick={() => onToggle(!isOpen)}
         style={{
-          width:         "100%",
-          height:        "52px",
-          display:       "flex",
-          flexDirection: "column",
-          alignItems:    "center",
-          justifyContent:"center",
-          gap:           "5px",
-          cursor:        "pointer",
-          flexShrink:    0,
-          userSelect:    "none",
+          width:           "100%",
+          height:          "54px",
+          display:         "flex",
+          flexDirection:   "row",
+          alignItems:      "center",
+          justifyContent:  "space-between",
+          padding:         "0 16px",
+          cursor:          "pointer",
+          flexShrink:      0,
+          userSelect:      "none",
+          backgroundColor: "#fff",
+          borderTop:       "1.5px solid #e5e7eb",
         }}
       >
-        <div style={{ width: "36px", height: "4px", borderRadius: "2px", backgroundColor: "#d1d5db" }} />
-        <span style={{ fontSize: "12px", fontWeight: "600", color: "#374151" }}>
-          Accessible Places {isOpen ? "↓" : "↑"}
+        <span style={{ fontSize: "14px", fontWeight: "700", color: "#111827", letterSpacing: "0.1px" }}>
+          Accessible Places Near You
         </span>
+        {/* Chevron — up when collapsed, down when expanded */}
+        <svg
+          width="20" height="20" viewBox="0 0 24 24"
+          fill="none" stroke="#6b7280" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{
+            transform:  isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 250ms ease-in-out",
+            flexShrink: 0,
+          }}
+        >
+          <polyline points="18 15 12 9 6 15" />
+        </svg>
       </div>
 
       {/* Scrollable list */}
@@ -469,8 +482,8 @@ export default function HomePage() {
 
   const filteredBusinesses = applyFilters(businesses, activeFilters);
 
-  // On mobile the floating cards sit just above the drawer handle
-  const cardBottom = isMobile ? 62 : 20;
+  // On mobile the floating cards sit just above the 54px drawer header
+  const cardBottom = isMobile ? 66 : 20;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "sans-serif" }}>
