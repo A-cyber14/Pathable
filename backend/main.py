@@ -20,7 +20,7 @@ app = FastAPI(
 _BASE_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://pathable-eta.vercel.app",
+    "https://pathable-art.vercel.app",
 ]
 
 # Allow extra origins injected at deploy time (e.g. a custom domain).

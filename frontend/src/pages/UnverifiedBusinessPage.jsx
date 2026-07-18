@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { createFromExternal } from "../services/api";
+import TriToggle from "../components/TriToggle";
 
 // Photo slot placeholders — same labels as BusinessDetailPage
 const PHOTO_SLOTS = [
@@ -65,32 +66,6 @@ function AddToPathableModal({ place, onClose, onSuccess }) {
       setSubmitting(false);
     }
   };
-
-  const TriToggle = ({ label, value, onChange }) => (
-    <div style={{ marginBottom: "12px" }}>
-      <div style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "6px" }}>{label}</div>
-      <div style={{ display: "flex", gap: "6px" }}>
-        {[{ v: true, label: "Yes" }, { v: false, label: "No" }, { v: null, label: "Unknown" }].map(({ v, label: l }) => (
-          <button
-            key={l}
-            onClick={() => onChange(v)}
-            style={{
-              padding:         "5px 12px",
-              borderRadius:    "6px",
-              border:          `1px solid ${value === v ? "#2563eb" : "#e5e7eb"}`,
-              backgroundColor: value === v ? "#eff6ff" : "#fff",
-              color:           value === v ? "#2563eb" : "#6b7280",
-              fontSize:        "13px",
-              fontWeight:      value === v ? "600" : "400",
-              cursor:          "pointer",
-            }}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 
   return (
     // Backdrop

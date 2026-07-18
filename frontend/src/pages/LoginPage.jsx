@@ -1,23 +1,47 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 // ---------------------------------------------------------------------------
 // LoginPage
 // Route: /login
-// Simple sign in screen — Google OAuth only per task requirements.
-// Redirects to / after successful login.
-// Style matches the app's clean, accessible aesthetic.
+// Sign in with Google, or with email/password (same Firebase project — just
+// a second enabled auth method, not a separate auth system).
+// Redirects to / after successful login; brand-new users get routed onward
+// to onboarding by ProfileGate in App.jsx once their profile loads.
 // ---------------------------------------------------------------------------
 
+const FRIENDLY_ERRORS = {
+  "auth/email-already-in-use": "An account with this email already exists. Try signing in instead.",
+  "auth/invalid-email":        "That doesn't look like a valid email address.",
+  "auth/weak-password":        "Password must be at least 6 characters.",
+  "auth/wrong-password":       "Incorrect email or password.",
+  "auth/user-not-found":       "Incorrect email or password.",
+  "auth/invalid-credential":   "Incorrect email or password.",
+  "auth/too-many-requests":    "Too many attempts. Please wait a moment and try again.",
+};
+
+function friendlyError(err) {
+  return FRIENDLY_ERRORS[err?.code] || "Something went wrong. Please try again.";
+}
+
 export default function LoginPage() {
-  const { currentUser, loginWithGoogle } = useAuth();
+  const { currentUser, loginWithGoogle, signUpWithEmail, signInWithEmail } = useAuth();
   const navigate = useNavigate();
 
-  // If already signed in, redirect to home immediately
+  const [mode,      setMode]      = useState("signin"); // "signin" | "signup"
+  const [email,     setEmail]     = useState("");
+  const [password,  setPassword]  = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error,     setError]     = useState(null);
+  const [signupMsg, setSignupMsg] = useState(false);
+
+  // If already signed in, redirect to home immediately — but not while the
+  // post-signup "check your email" screen is showing (sign-up itself signs
+  // the user in, which would otherwise race this redirect and skip it).
   useEffect(() => {
-    if (currentUser) navigate("/");
-  }, [currentUser, navigate]);
+    if (currentUser && !signupMsg) navigate("/");
+  }, [currentUser, navigate, signupMsg]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -28,6 +52,60 @@ export default function LoginPage() {
     }
   };
 
+  const handleEmailSubmit = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    const signingUp = mode === "signup";
+    // Set this *before* awaiting sign-up, not after — createUserWithEmailAndPassword
+    // fires Firebase's onAuthStateChanged (which flips currentUser truthy) before our
+    // own await resolves, so setting the flag afterward loses the race against the
+    // redirect-home effect above and the "check your email" screen never shows.
+    if (signingUp) setSignupMsg(true);
+    try {
+      if (signingUp) {
+        await signUpWithEmail(email.trim(), password);
+      } else {
+        await signInWithEmail(email.trim(), password);
+        navigate("/");
+      }
+    } catch (err) {
+      if (signingUp) setSignupMsg(false);
+      setError(friendlyError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "12px 14px", fontSize: "14px",
+    border: "1.5px solid #d1d5db", borderRadius: "10px", outline: "none",
+    boxSizing: "border-box", color: "#111827", fontFamily: "sans-serif",
+  };
+
+  // ── Post-signup: check your inbox ───────────────────────────────────────
+  if (signupMsg) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", backgroundColor: "#f9fafb", fontFamily: "sans-serif", padding: "24px" }}>
+        <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "16px", padding: "40px", maxWidth: "400px", width: "100%", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.07)" }}>
+          <div style={{ fontSize: "36px", marginBottom: "12px" }}>📬</div>
+          <h1 style={{ fontSize: "20px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>Verify your email</h1>
+          <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 24px", lineHeight: "1.6" }}>
+            We sent a verification link to <strong>{email}</strong>. You can continue setting up your account now —
+            verifying just confirms you own this email address.
+          </p>
+          <button
+            onClick={() => navigate("/")}
+            style={{ width: "100%", padding: "13px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "10px", fontSize: "15px", fontWeight: "700", cursor: "pointer" }}
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -35,7 +113,7 @@ export default function LoginPage() {
         flexDirection:  "column",
         alignItems:     "center",
         justifyContent: "center",
-        height:         "100vh",
+        minHeight:      "100vh",
         backgroundColor: "#f9fafb",
         fontFamily:     "sans-serif",
         padding:        "24px",
@@ -66,7 +144,7 @@ export default function LoginPage() {
             margin:       "0 0 8px",
           }}
         >
-          Sign in to Pathable
+          {mode === "signup" ? "Create your Pathable account" : "Sign in to Pathable"}
         </h1>
 
         {/* Subtitle */}
@@ -74,12 +152,68 @@ export default function LoginPage() {
           style={{
             fontSize:     "14px",
             color:        "#6b7280",
-            margin:       "0 0 32px",
+            margin:       "0 0 28px",
             lineHeight:   "1.5",
           }}
         >
           Find accessible locations in Pinellas County, FL
         </p>
+
+        {/* Email/password form */}
+        <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px", textAlign: "left" }}>
+          <label htmlFor="login-email" style={{ fontSize: "12px", fontWeight: "600", color: "#6b7280" }}>Email</label>
+          <input
+            id="login-email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(null); }}
+            style={inputStyle}
+          />
+          <label htmlFor="login-password" style={{ fontSize: "12px", fontWeight: "600", color: "#6b7280", marginTop: "4px" }}>Password</label>
+          <input
+            id="login-password"
+            type="password"
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            required
+            minLength={6}
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(null); }}
+            style={inputStyle}
+          />
+
+          {error && (
+            <p role="alert" style={{ color: "#dc2626", fontSize: "13px", margin: "2px 0 0" }}>{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            style={{
+              width: "100%", padding: "13px", marginTop: "6px",
+              backgroundColor: "#2563eb", color: "#fff", border: "none", borderRadius: "10px",
+              fontSize: "15px", fontWeight: "700", cursor: submitting ? "not-allowed" : "pointer",
+              opacity: submitting ? 0.7 : 1,
+            }}
+          >
+            {submitting ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+          </button>
+        </form>
+
+        <button
+          type="button"
+          onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(null); }}
+          style={{ background: "none", border: "none", color: "#2563eb", fontSize: "13px", fontWeight: "600", cursor: "pointer", padding: "0 0 20px" }}
+        >
+          {mode === "signup" ? "Already have an account? Sign in" : "New to Pathable? Create an account"}
+        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", margin: "0 0 20px" }}>
+          <div style={{ flex: 1, height: "1px", backgroundColor: "#e5e7eb" }} />
+          <span style={{ fontSize: "11px", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>or</span>
+          <div style={{ flex: 1, height: "1px", backgroundColor: "#e5e7eb" }} />
+        </div>
 
         {/* Google sign in button */}
         <button

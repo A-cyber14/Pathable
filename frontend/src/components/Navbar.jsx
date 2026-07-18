@@ -65,7 +65,12 @@ const ADMIN_NAV_ITEMS = [
 ];
 
 // Pages where the sidebar should be hidden (sign-in + onboarding).
-const HIDDEN_PATHS = ["/login", "/account-type", "/business-setup"];
+const HIDDEN_PATHS = ["/login", "/account-type"];
+const HIDDEN_PATH_PREFIXES = ["/onboarding", "/business-setup"];
+
+function isHiddenPath(pathname) {
+  return HIDDEN_PATHS.includes(pathname) || HIDDEN_PATH_PREFIXES.some((p) => pathname.startsWith(p));
+}
 
 // ---------------------------------------------------------------------------
 // Navbar
@@ -77,7 +82,7 @@ export default function Navbar() {
   const { userProfile } = useAuth();
   const isMobile = useIsMobile();
 
-  if (HIDDEN_PATHS.includes(location.pathname)) return null;
+  if (isHiddenPath(location.pathname)) return null;
 
   const accountType = userProfile?.accountType;
   const navItems =

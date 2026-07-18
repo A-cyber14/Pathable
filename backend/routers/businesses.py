@@ -6,6 +6,8 @@ from services.firebase import db, get_contributor_uid
 from services.scoring import calculate_accessibility_score
 from services.stats import recalculate_business_stats
 from services.maps import get_maps_client
+from services.duplicates import find_duplicate_business_id
+from services.billing import photo_limit_for_plan
 from datetime import datetime, timezone
 import firebase_admin.auth as firebase_auth
 import uuid
@@ -48,6 +50,12 @@ def _enrich_score(data: dict) -> dict:
     except Exception:
         data = dict(data)
         data["accessibility_score"] = None
+    # "verified" here means Pathable has reviewed the location's accessibility
+    # info — unrelated to business ownership. "claimed" just tells the
+    # business-search UI whether a business account already manages this
+    # listing (see setup_business's ownerUserId conflict check).
+    data["verified"] = bool(data.get("pathable_verified") or data.get("verified"))
+    data["claimed"]  = bool(data.get("ownerUserId"))
     return data
 
 
@@ -126,6 +134,9 @@ class UnifiedSearchResult(BaseModel):
     in_db:               bool
     place_id:            Optional[str]   = None
     accessibility_score: Optional[int]   = None
+    category:            Optional[str]   = None
+    verified:             Optional[bool] = None   # Pathable-reviewed accessibility info
+    claimed:               Optional[bool] = None   # already managed by a business account
 
 
 @router.get("/search-unified", response_model=list[UnifiedSearchResult])
@@ -155,6 +166,9 @@ def search_unified(q: str = Query(..., description="Unified search query")):
                 in_db=True,
                 place_id=gplace_id,
                 accessibility_score=data.get("accessibility_score"),
+                category=data.get("category"),
+                verified=data.get("verified"),
+                claimed=data.get("claimed"),
             ))
 
     places_results: list[UnifiedSearchResult] = []
@@ -214,30 +228,11 @@ class CreateFromExternalResponse(BaseModel):
 
 @router.post("/create-from-external", response_model=CreateFromExternalResponse, status_code=200)
 def create_from_external(body: CreateFromExternalRequest):
-    name_lower = body.name.strip().lower()
-    addr_lower = body.address.strip().lower()
+    duplicate_id = find_duplicate_business_id(body.name, body.address, body.place_id)
+    if duplicate_id:
+        return CreateFromExternalResponse(id=duplicate_id, existing=True)
 
-    # 1. Exact match on Google place_id
-    if body.place_id:
-        docs = db.collection(COLLECTION).stream()
-        for doc in docs:
-            data = doc.to_dict()
-            gid = data.get("googlePlaceId") or data.get("place_id")
-            if gid == body.place_id:
-                return CreateFromExternalResponse(id=doc.id, existing=True)
-
-    # 2. Fuzzy name + address match — treat as duplicate if both substrings match
-    docs = db.collection(COLLECTION).stream()
-    for doc in docs:
-        data     = doc.to_dict()
-        s_name   = data.get("name",    "").lower()
-        s_addr   = data.get("address", "").lower()
-        name_hit = name_lower in s_name or s_name in name_lower
-        addr_hit = addr_lower in s_addr or s_addr in addr_lower
-        if name_hit and addr_hit:
-            return CreateFromExternalResponse(id=doc.id, existing=True)
-
-    # 3. No duplicate — create new business
+    # No duplicate — create new business
     new_id = uuid.uuid4().hex
     now    = datetime.now(timezone.utc).isoformat()
 
@@ -399,8 +394,28 @@ class PhotoSubmission(BaseModel):
 def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = Header(...)):
     uid = get_uid(authorization)
 
-    if not db.collection(COLLECTION).document(business_id).get().exists:
+    biz_doc = db.collection(COLLECTION).document(business_id).get()
+    if not biz_doc.exists:
         raise HTTPException(status_code=404, detail=f"Business '{business_id}' not found")
+    biz_data = biz_doc.to_dict()
+
+    # Plan photo limits only apply to the business owner's own uploads —
+    # community contributions from other users are never capped by a
+    # business's plan (see services/billing.py for the per-plan caps).
+    if biz_data.get("ownerUserId") == uid:
+        limit = photo_limit_for_plan(biz_data.get("selectedPlan"))
+        if limit is not None:
+            owner_photo_count = sum(
+                1 for p in (
+                    db.collection(COLLECTION).document(business_id)
+                    .collection("photos").where("uploadedBy", "==", uid).stream()
+                )
+            )
+            if owner_photo_count >= limit:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Your current plan allows up to {limit} photos. Upgrade your plan to upload more.",
+                )
 
     now        = datetime.now(timezone.utc).isoformat()
     category   = body.category or "Other"

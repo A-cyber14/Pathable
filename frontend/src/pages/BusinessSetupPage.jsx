@@ -6,8 +6,9 @@ import { setupBusiness, searchBusinesses } from "../services/api";
 // ---------------------------------------------------------------------------
 // BusinessSetupPage
 // Route: /business-setup
-// Reached from AccountTypePage after selecting "Business Account".
-// The user must pick an existing Pathable business — no manual creation.
+// Reached after plan selection. Lets the owner search all Pathable listings
+// (verified and unverified — search already covers both), claim an
+// unclaimed one, or add a brand new business if theirs isn't listed yet.
 // ---------------------------------------------------------------------------
 
 const inputStyle = {
@@ -36,16 +37,14 @@ export default function BusinessSetupPage() {
   const { refreshProfile } = useAuth();
   const navigate = useNavigate();
 
-  const [query,         setQuery]         = useState("");
-  const [results,       setResults]       = useState([]);
-  const [searching,     setSearching]     = useState(false);
-  const [selectedBiz,   setSelectedBiz]   = useState(null);
-  const [submitting,    setSubmitting]    = useState(false);
-  const [error,         setError]         = useState(null);
+  const [query,       setQuery]       = useState("");
+  const [results,     setResults]     = useState([]);
+  const [searching,   setSearching]   = useState(false);
+  const [claimingId,  setClaimingId]  = useState(null);
+  const [error,       setError]       = useState(null);
 
   const debouncedQuery = useDebounce(query, 350);
 
-  // Fetch matching businesses as the user types
   useEffect(() => {
     if (!debouncedQuery.trim()) {
       setResults([]);
@@ -58,30 +57,22 @@ export default function BusinessSetupPage() {
       .finally(() => setSearching(false));
   }, [debouncedQuery]);
 
-  const handleSelect = (biz) => {
-    setSelectedBiz(biz);
-    setQuery(biz.name);
-    setResults([]);
-    setError(null);
-  };
-
-  const handleContinue = async () => {
-    if (!selectedBiz) {
-      setError("Please select your business from the list.");
-      return;
-    }
-    setSubmitting(true);
+  const handleClaim = async (biz) => {
+    if (claimingId) return;
+    setClaimingId(biz.id);
     setError(null);
     try {
-      await setupBusiness({ claim_id: selectedBiz.id });
+      await setupBusiness({ claim_id: biz.id });
       await refreshProfile();
-      navigate("/business-profile");
+      navigate("/business-setup/information", { state: { businessId: biz.id } });
     } catch (err) {
-      setError(err.message || "Failed to link business. Please try again.");
+      setError(err.message || "Failed to claim this business. Please try again.");
     } finally {
-      setSubmitting(false);
+      setClaimingId(null);
     }
   };
+
+  const handleAddNew = () => navigate("/business-setup/information");
 
   return (
     <div
@@ -92,19 +83,19 @@ export default function BusinessSetupPage() {
         minHeight:      "100vh",
         backgroundColor: "#f9fafb",
         fontFamily:     "sans-serif",
-        padding:        "48px 24px",
+        padding:        "48px 20px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: "480px" }}>
+      <div style={{ width: "100%", maxWidth: "520px" }}>
 
         {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+        <div style={{ textAlign: "center", marginBottom: "28px" }}>
           <div style={{ fontSize: "32px", marginBottom: "10px" }}>🏢</div>
           <h1 style={{ fontSize: "22px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>
-            Find Your Business
+            Is your business already on Pathable?
           </h1>
           <p style={{ fontSize: "14px", color: "#6b7280", margin: 0, lineHeight: "1.6" }}>
-            Search for your business in Pathable and link it to your account.
+            Search by name to claim your existing listing, or add it if it isn't here yet.
           </p>
         </div>
 
@@ -114,140 +105,108 @@ export default function BusinessSetupPage() {
             backgroundColor: "#fff",
             border:          "1px solid #e5e7eb",
             borderRadius:    "14px",
-            padding:         "24px",
+            padding:         "22px",
             boxShadow:       "0 1px 4px rgba(0,0,0,0.05)",
             marginBottom:    "16px",
           }}
         >
-          <label
-            style={{
-              display:      "block",
-              fontSize:     "12px",
-              fontWeight:   "600",
-              color:        "#6b7280",
-              marginBottom: "8px",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
+          <label htmlFor="biz-search" style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#6b7280", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Business Name
           </label>
 
-          <div style={{ position: "relative" }}>
-            <input
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); setSelectedBiz(null); setError(null); }}
-              placeholder="Start typing to search…"
-              style={inputStyle}
-              autoFocus
-            />
+          <input
+            id="biz-search"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setError(null); }}
+            placeholder="Start typing to search…"
+            style={inputStyle}
+            autoFocus
+          />
 
-            {/* Search results dropdown */}
-            {!searching && results.length > 0 && (
-              <div
-                style={{
-                  position:        "absolute",
-                  top:             "calc(100% + 6px)",
-                  left:            0,
-                  right:           0,
-                  backgroundColor: "#fff",
-                  border:          "1px solid #e5e7eb",
-                  borderRadius:    "10px",
-                  boxShadow:       "0 4px 16px rgba(0,0,0,0.1)",
-                  zIndex:          10,
-                  overflow:        "hidden",
-                }}
-              >
-                {results.map((biz, i) => (
+          {searching && (
+            <p style={{ marginTop: "10px", fontSize: "13px", color: "#9ca3af" }}>Searching…</p>
+          )}
+
+          {!searching && debouncedQuery.trim() && results.length === 0 && (
+            <p style={{ marginTop: "10px", fontSize: "13px", color: "#9ca3af" }}>
+              No businesses found matching "{debouncedQuery.trim()}".
+            </p>
+          )}
+
+          {!searching && results.length > 0 && (
+            <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              {results.map((biz) => (
+                <div
+                  key={biz.id}
+                  style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px",
+                    padding: "12px 14px", border: "1px solid #e5e7eb", borderRadius: "10px", backgroundColor: "#fafafa",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{biz.name}</span>
+                      {biz.verified && (
+                        <span style={{ fontSize: "10px", fontWeight: "700", color: "#16a34a", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "999px", padding: "1px 7px" }}>
+                          ✓ Pathable Verified
+                        </span>
+                      )}
+                      {biz.claimed && (
+                        <span style={{ fontSize: "10px", fontWeight: "700", color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "999px", padding: "1px 7px" }}>
+                          Already claimed
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
+                      {biz.address}{biz.category ? ` · ${biz.category}` : ""}
+                    </div>
+                  </div>
                   <button
-                    key={biz.id}
-                    onClick={() => handleSelect(biz)}
+                    onClick={() => handleClaim(biz)}
+                    disabled={biz.claimed || claimingId === biz.id}
                     style={{
-                      display:    "block",
-                      width:      "100%",
-                      textAlign:  "left",
-                      padding:    "12px 14px",
-                      background: "none",
-                      border:     "none",
-                      borderBottom: i < results.length - 1 ? "1px solid #f3f4f6" : "none",
-                      cursor:     "pointer",
+                      flexShrink: 0, padding: "8px 14px", borderRadius: "8px", fontSize: "13px", fontWeight: "600",
+                      border: "none",
+                      backgroundColor: biz.claimed ? "#e5e7eb" : "#111827",
+                      color: biz.claimed ? "#9ca3af" : "#fff",
+                      cursor: biz.claimed || claimingId === biz.id ? "not-allowed" : "pointer",
+                      minHeight: "36px",
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f9fafb"}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                   >
-                    <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{biz.name}</div>
-                    <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>{biz.address}</div>
+                    {claimingId === biz.id ? "Claiming…" : biz.claimed ? "Claimed" : "Claim this business"}
                   </button>
-                ))}
-              </div>
-            )}
-
-            {searching && (
-              <div style={{ marginTop: "8px", fontSize: "13px", color: "#9ca3af" }}>Searching…</div>
-            )}
-
-            {!searching && debouncedQuery.trim() && results.length === 0 && !selectedBiz && (
-              <div style={{ marginTop: "8px", fontSize: "13px", color: "#9ca3af" }}>
-                No businesses found. Try a different name.
-              </div>
-            )}
-          </div>
-
-          {/* Selected confirmation */}
-          {selectedBiz && (
-            <div
-              style={{
-                marginTop:       "12px",
-                padding:         "12px 14px",
-                backgroundColor: "#f0fdf4",
-                border:          "1.5px solid #bbf7d0",
-                borderRadius:    "8px",
-                display:         "flex",
-                justifyContent:  "space-between",
-                alignItems:      "center",
-              }}
-            >
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{selectedBiz.name}</div>
-                <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>{selectedBiz.address}</div>
-              </div>
-              <button
-                onClick={() => { setSelectedBiz(null); setQuery(""); }}
-                style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: "16px", padding: "0 0 0 12px", flexShrink: 0 }}
-              >
-                ✕
-              </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
         {error && (
-          <p style={{ color: "#dc2626", fontSize: "13px", margin: "0 0 12px" }}>{error}</p>
+          <p role="alert" style={{ color: "#dc2626", fontSize: "13px", margin: "0 0 16px" }}>{error}</p>
         )}
 
-        <button
-          onClick={handleContinue}
-          disabled={submitting || !selectedBiz}
-          style={{
-            width:           "100%",
-            padding:         "14px",
-            backgroundColor: "#111827",
-            color:           "#fff",
-            border:          "none",
-            borderRadius:    "10px",
-            fontSize:        "15px",
-            fontWeight:      "600",
-            cursor:          submitting || !selectedBiz ? "not-allowed" : "pointer",
-            opacity:         submitting || !selectedBiz ? 0.5 : 1,
-            transition:      "opacity 0.15s",
-          }}
-        >
-          {submitting ? "Linking your business…" : "Continue →"}
-        </button>
-
-        <p style={{ fontSize: "12px", color: "#9ca3af", textAlign: "center", marginTop: "12px", lineHeight: "1.5" }}>
-          Your business must already be listed on Pathable. Contact us if you can't find it.
-        </p>
+        {/* Fallback actions */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <button
+            onClick={handleAddNew}
+            style={{
+              width: "100%", padding: "14px", backgroundColor: "#111827", color: "#fff", border: "none",
+              borderRadius: "10px", fontSize: "15px", fontWeight: "600", cursor: "pointer", minHeight: "48px",
+            }}
+          >
+            + Add a new business
+          </button>
+          <button
+            onClick={handleAddNew}
+            style={{
+              width: "100%", padding: "12px", backgroundColor: "#fff", color: "#374151",
+              border: "1.5px solid #e5e7eb", borderRadius: "10px", fontSize: "14px", fontWeight: "600",
+              cursor: "pointer", minHeight: "44px",
+            }}
+          >
+            I can't find my business
+          </button>
+        </div>
       </div>
     </div>
   );

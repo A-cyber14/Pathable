@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 from services.firebase import db
+from services.billing import payment_status_for_plan, PLANS
 import firebase_admin.auth as firebase_auth
 
 router = APIRouter()
@@ -44,16 +45,66 @@ def require_business(uid: str) -> str:
 # Request models
 # ---------------------------------------------------------------------------
 
+ACCESSIBILITY_FIELDS = [
+    "wheelchair_accessible", "accessible_parking", "accessible_restrooms",
+    "elevator", "auto_doors", "wheelchair_accessible_tables", "handrails_available",
+    "hearing_assistance", "braille_signage", "sensory_friendly", "service_animal_support",
+]
+
+
 class BusinessProfileUpdate(BaseModel):
-    name:        Optional[str] = None
-    address:     Optional[str] = None
-    description: Optional[str] = None
+    name:            Optional[str]  = None
+    address:         Optional[str]  = None
+    description:     Optional[str]  = None
+    category:        Optional[str]  = None
+    phone:           Optional[str]  = None
+    businessEmail:   Optional[str]  = None
+    businessEmailPublic: Optional[bool] = None
+    website:         Optional[str]  = None
+    hours:           Optional[dict[str, str]] = None
+    # Accessibility — tri-state (True/False/None = Yes/No/Unsure), same fields as ACCESSIBILITY_FIELDS
+    wheelchair_accessible:        Optional[bool] = None
+    accessible_parking:           Optional[bool] = None
+    accessible_restrooms:         Optional[bool] = None
+    elevator:                     Optional[bool] = None
+    auto_doors:                   Optional[bool] = None
+    wheelchair_accessible_tables: Optional[bool] = None
+    handrails_available:          Optional[bool] = None
+    hearing_assistance:           Optional[bool] = None
+    braille_signage:              Optional[bool] = None
+    sensory_friendly:             Optional[bool] = None
+    service_animal_support:       Optional[bool] = None
+    entrance_width_rating:        Optional[str]  = None
+    accessibilityNotes:           Optional[dict[str, str]] = None
+    accessibilityNotApplicable:   Optional[list[str]]      = None
+    selectedPlan:                 Optional[str]  = None   # changing plan post-onboarding ("Manage plan")
+    businessTutorialCompleted:    Optional[bool] = None
 
 
 # ---------------------------------------------------------------------------
 # GET /api/dashboard/my-business
 # Returns the authenticated business owner's business document.
 # ---------------------------------------------------------------------------
+
+def _compute_profile_completion(data: dict, photos_count: int) -> int:
+    """
+    4 equal-weight sections: business info, hours, accessibility, photos.
+    Intentionally coarse (section-complete or not) rather than counting
+    individual fields, so partial info still gives credit.
+    """
+    sections_done = 0
+
+    if data.get("name") and data.get("address") and data.get("category") and data.get("phone"):
+        sections_done += 1
+    if data.get("hours"):
+        sections_done += 1
+    if any(data.get(f) is not None for f in ACCESSIBILITY_FIELDS):
+        sections_done += 1
+    if photos_count > 0:
+        sections_done += 1
+
+    return round((sections_done / 4) * 100)
+
 
 @router.get("/my-business", status_code=200)
 def get_my_business(authorization: str = Header(...)):
@@ -73,6 +124,7 @@ def get_my_business(authorization: str = Header(...)):
         .collection("photos").stream()
     )
     data["photos_count"] = len(photos_snap)
+    data["profileCompletion"] = _compute_profile_completion(data, len(photos_snap))
 
     return data
 
@@ -81,6 +133,9 @@ def get_my_business(authorization: str = Header(...)):
 # PUT /api/dashboard/my-business
 # Allows business owner to update name, address, and description.
 # ---------------------------------------------------------------------------
+
+_STRIP_FIELDS = {"name", "address", "description", "category", "phone", "businessEmail", "website"}
+
 
 @router.put("/my-business", status_code=200)
 def update_my_business(body: BusinessProfileUpdate, authorization: str = Header(...)):
@@ -91,13 +146,18 @@ def update_my_business(body: BusinessProfileUpdate, authorization: str = Header(
     if not ref.get().exists:
         raise HTTPException(status_code=404, detail="Business not found")
 
-    update_data = {}
-    if body.name is not None:
-        update_data["name"] = body.name.strip()
-    if body.address is not None:
-        update_data["address"] = body.address.strip()
-    if body.description is not None:
-        update_data["description"] = body.description.strip()
+    # exclude_unset so an explicit "Unsure" (None) on an accessibility field is
+    # saved as a deliberate choice, while fields the owner never touched are
+    # left alone rather than being wiped back to null.
+    update_data = body.model_dump(exclude_unset=True)
+    for key in _STRIP_FIELDS:
+        if isinstance(update_data.get(key), str):
+            update_data[key] = update_data[key].strip()
+
+    if "selectedPlan" in update_data:
+        if update_data["selectedPlan"] not in PLANS:
+            raise HTTPException(status_code=422, detail="Unknown plan.")
+        update_data["paymentStatus"] = payment_status_for_plan(update_data["selectedPlan"])
 
     if update_data:
         update_data["last_updated"] = datetime.now(timezone.utc).isoformat()

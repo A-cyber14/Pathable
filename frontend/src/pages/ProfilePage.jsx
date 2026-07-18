@@ -3,26 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getProfile, updateProfile } from "../services/api";
 import { useDisplaySettings } from "../context/DisplaySettingsContext";
-
-const DISABILITY_OPTIONS = [
-  { value: "",               label: "Select disability type..." },
-  { value: "Mobility",       label: "Mobility"       },
-  { value: "Vision",         label: "Vision"         },
-  { value: "Hearing",        label: "Hearing"        },
-  { value: "Neurodivergent", label: "Neurodivergent" },
-  { value: "Other",          label: "Other"          },
-];
-
-const FEATURE_OPTIONS = [
-  { value: "wheelchair_accessible",        label: "Wheelchair Accessible",        desc: "Ramps or step-free access throughout" },
-  { value: "accessible_parking",           label: "Accessible Parking",           desc: "Designated parking spaces close to entrance" },
-  { value: "wide_entrances",               label: "Wide Entrances",               desc: "Doors wide enough for wheelchair access" },
-  { value: "accessible_restrooms",         label: "Accessible Restrooms",         desc: "Wheelchair-accessible restroom facilities" },
-  { value: "elevators",                    label: "Elevators",                    desc: "Accessible elevators for multi-floor buildings" },
-  { value: "automatic_doors",              label: "Automatic Doors",              desc: "Hands-free entry and exit" },
-  { value: "wheelchair_accessible_tables", label: "Wheelchair-Accessible Tables", desc: "Tables with adequate clearance for wheelchairs" },
-  { value: "handrails_available",          label: "Handrails",                    desc: "Handrails on stairs, ramps, or walkways" },
-];
+import { DISABILITY_OPTIONS, FEATURE_OPTIONS } from "../constants/accessibility";
 
 function ToggleRow({ id, label, description, checked, onChange }) {
   return (
@@ -158,6 +139,17 @@ export default function ProfilePage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Help */}
+        <div style={cardStyle}>
+          <p style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "600", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>Help</p>
+          <button
+            onClick={() => navigate("/onboarding/tutorial")}
+            style={{ background: "none", border: "none", color: "#2563eb", fontSize: "14px", fontWeight: "600", cursor: "pointer", padding: 0 }}
+          >
+            Replay tutorial
+          </button>
         </div>
 
         {/* Display Settings — local-only, no save needed */}

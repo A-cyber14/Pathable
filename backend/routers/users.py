@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
@@ -5,6 +6,8 @@ from datetime import datetime, timezone
 from models.business import Business
 from services.firebase import db, get_contributor_uid
 from services.scoring import calculate_accessibility_score
+from services.duplicates import find_duplicate_business_id
+from services.billing import payment_status_for_plan, PLANS
 from config import ADMIN_EMAIL
 import firebase_admin.auth as firebase_auth
 
@@ -103,18 +106,26 @@ def _enrich_score(data: dict) -> dict:
 
 class ProfileUpdate(BaseModel):
     disabilityType:     Optional[str]       = None
-    featurePreferences: Optional[list[str]] = []
+    featurePreferences: Optional[list[str]] = None
     accountType:        Optional[str]       = None   # "user" | "business"
-    hideIdentity:       Optional[bool]      = None   # None = no change; False = show name (default); True = anonymous
+    hideIdentity:       Optional[bool]      = None   # False = show name (default); True = anonymous
+    # Onboarding progress — see App.jsx's ProfileGate for how these drive resuming.
+    onboardingStep:          Optional[str]  = None
+    userTutorialCompleted:   Optional[bool] = None
+    pendingPlan:              Optional[str] = None   # plan chosen before a business exists yet
 
 
 class SetupBusinessBody(BaseModel):
-    # Provide claim_id to claim an existing business, OR name+address to create new.
-    claim_id: Optional[str] = None
-    name:     Optional[str] = None
-    address:  Optional[str] = None
-    website:  Optional[str] = None
-    phone:    Optional[str] = None
+    # Provide claim_id to claim an existing business, OR name+address(+details) to create new.
+    claim_id:      Optional[str] = None
+    name:          Optional[str] = None
+    address:       Optional[str] = None
+    category:      Optional[str] = None
+    phone:         Optional[str] = None
+    businessEmail: Optional[str] = None
+    website:       Optional[str] = None
+    description:   Optional[str] = None
+    hours:         Optional[dict[str, str]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +164,9 @@ def get_profile(authorization: str = Header(...)):
             "accountType":        "admin" if is_admin else None,
             "businessId":         None,
             "hideIdentity":       False,
+            "onboardingStep":     None,
+            "userTutorialCompleted": False,
+            "pendingPlan":        None,
             **activity,
         }
 
@@ -179,6 +193,9 @@ def get_profile(authorization: str = Header(...)):
         "accountType":        data.get("accountType", None),
         "businessId":         data.get("businessId", None),
         "hideIdentity":       data.get("hideIdentity", False),
+        "onboardingStep":     data.get("onboardingStep", None),
+        "userTutorialCompleted": data.get("userTutorialCompleted", False),
+        "pendingPlan":        data.get("pendingPlan", None),
         **activity,
     }
 
@@ -192,14 +209,16 @@ def update_profile(body: ProfileUpdate, authorization: str = Header(...)):
     uid = get_uid(authorization)
     user_ref = db.collection("users").document(uid)
 
-    update_data = {
-        "disabilityType":     body.disabilityType,
-        "featurePreferences": body.featurePreferences or [],
-    }
-    if body.accountType in ("user", "business"):
-        update_data["accountType"] = body.accountType
-    if body.hideIdentity is not None:
-        update_data["hideIdentity"] = body.hideIdentity
+    # Only touch fields the caller actually sent — onboarding calls this
+    # endpoint multiple times across steps (account type, then profile, then
+    # tutorial completion, ...) and previously any call would silently reset
+    # disabilityType/featurePreferences back to empty on every save.
+    update_data = body.model_dump(exclude_unset=True)
+    if "accountType" in update_data and update_data["accountType"] not in ("user", "business"):
+        del update_data["accountType"]
+
+    if not update_data:
+        return {"message": "Nothing to update"}
 
     user_doc = user_ref.get()
     if user_doc.exists:
@@ -245,27 +264,62 @@ def get_bookmarks(authorization: str = Header(...)):
     return results
 
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 # ---------------------------------------------------------------------------
 # POST /api/users/me/setup-business
-# Called during onboarding when a user selects "Business Account".
-# Either claims an existing business (claim_id provided) or creates a new one.
-# Sets accountType="business" and businessId on the user document.
-# No verification or approval — full access immediately (MVP).
+# Called during business onboarding, either to claim an existing listing
+# (claim_id) or create a new one (name+address+details).
+# Sets accountType="business" and businessId on the user document, and
+# ownerUserId + the pending plan on the business document.
+#
+# Verification and payment are NOT required to reach the dashboard — a
+# claimed/created business gets immediate access (MVP), matching the rest
+# of the onboarding flow.
 # ---------------------------------------------------------------------------
 
 @router.post("/me/setup-business", status_code=200)
 def setup_business(body: SetupBusinessBody, authorization: str = Header(...)):
     uid = get_uid(authorization)
+    user_ref = db.collection("users").document(uid)
+    user_doc = user_ref.get()
+    pending_plan = user_doc.to_dict().get("pendingPlan") if user_doc.exists else None
+    plan_fields = {}
+    if pending_plan in PLANS:
+        plan_fields = {"selectedPlan": pending_plan, "paymentStatus": payment_status_for_plan(pending_plan)}
+
+    if body.businessEmail and not _EMAIL_RE.match(body.businessEmail.strip()):
+        raise HTTPException(status_code=422, detail="Business email is not a valid email address.")
 
     # ── Validate input ──────────────────────────────────────────────────────
     if body.claim_id:
         # Claiming an existing business
         biz_ref = db.collection("businesses").document(body.claim_id)
-        if not biz_ref.get().exists:
+        biz_snap = biz_ref.get()
+        if not biz_snap.exists:
             raise HTTPException(status_code=404, detail="Business not found")
+
+        existing_owner = biz_snap.to_dict().get("ownerUserId")
+        if existing_owner and existing_owner != uid:
+            raise HTTPException(
+                status_code=409,
+                detail="This business is already managed by another account. "
+                       "If that's a mistake, try adding your business as a new listing instead.",
+            )
+
         business_id = body.claim_id
+        biz_ref.update({"ownerUserId": uid, **plan_fields})
 
     elif body.name and body.address:
+        duplicate_id = find_duplicate_business_id(body.name, body.address)
+        if duplicate_id:
+            raise HTTPException(
+                status_code=409,
+                detail="A business with this name and address already exists on Pathable. "
+                       "Search for it and claim it instead of creating a duplicate.",
+            )
+
         # Creating a new business entry
         # lat/lon default to 0 — can be updated later via the contribute flow
         new_biz = {
@@ -281,16 +335,24 @@ def setup_business(body: SetupBusinessBody, authorization: str = Header(...)):
             "wheelchair_accessible_tables": None,
             "handrails_available":        None,
             "entrance_width_rating":      None,
-            "description":                None,
+            "description":                body.description.strip() if body.description else None,
             "community_score":            None,
             "review_count":               0,
             "contributors_count":         0,
             "last_updated":               datetime.now(timezone.utc).isoformat(),
+            "ownerUserId":                uid,
+            **plan_fields,
         }
         if body.website:
             new_biz["website"] = body.website.strip()
         if body.phone:
             new_biz["phone"] = body.phone.strip()
+        if body.category:
+            new_biz["category"] = body.category.strip()
+        if body.businessEmail:
+            new_biz["businessEmail"] = body.businessEmail.strip()
+        if body.hours:
+            new_biz["hours"] = body.hours
 
         _, doc_ref = db.collection("businesses").add(new_biz)
         business_id = doc_ref.id
@@ -302,9 +364,7 @@ def setup_business(body: SetupBusinessBody, authorization: str = Header(...)):
         )
 
     # ── Update user doc ─────────────────────────────────────────────────────
-    user_ref  = db.collection("users").document(uid)
-    user_doc  = user_ref.get()
-    user_data = {"accountType": "business", "businessId": business_id}
+    user_data = {"accountType": "business", "businessId": business_id, "pendingPlan": None}
 
     if user_doc.exists:
         user_ref.update(user_data)

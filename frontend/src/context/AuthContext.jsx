@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import {
+  GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification,
+} from "firebase/auth";
 import { auth } from "../firebase";
 import { getProfile } from "../services/api";
 
@@ -62,6 +65,29 @@ export function AuthProvider({ children }) {
     // onAuthStateChanged above will call fetchProfile automatically.
   };
 
+  // Create an account with email/password. Sends Firebase's built-in
+  // verification email (reuses the existing auth provider — no separate
+  // email service needed for login-email verification).
+  const signUpWithEmail = async (email, password) => {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await sendEmailVerification(cred.user);
+    } catch (err) {
+      console.error("[Auth] Email sign-up failed:", err.code, err.message);
+      throw err;
+    }
+  };
+
+  // Sign in with an existing email/password account.
+  const signInWithEmail = async (email, password) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      console.error("[Auth] Email sign-in failed:", err.code, err.message);
+      throw err;
+    }
+  };
+
   // Sign out and clear profile.
   const logout = async () => {
     await signOut(auth);
@@ -85,6 +111,8 @@ export function AuthProvider({ children }) {
         userProfile,
         profileLoading,
         loginWithGoogle,
+        signUpWithEmail,
+        signInWithEmail,
         logout,
         refreshProfile,
       }}
