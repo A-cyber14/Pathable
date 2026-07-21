@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 
 
 class Business(BaseModel):
@@ -38,10 +38,21 @@ class Business(BaseModel):
     website:               Optional[str]  = None
     businessEmail:         Optional[str]  = None   # contact email, separate from the owner's login email
     businessEmailPublic:   Optional[bool] = False  # only show businessEmail publicly if the owner opts in
-    hours:                 Optional[dict[str, str]] = None  # e.g. {"mon": "9:00 AM - 5:00 PM", "sun": "Closed"}
+    # Per weekday: either a legacy free-text string ("9:00 AM - 5:00 PM", "Closed")
+    # from before the structured editor existed, or a list of {open, close} 24h
+    # "HH:MM" period objects (empty list = closed, multiple = split hours like
+    # lunch/dinner). Both shapes can coexist across different days on the same
+    # business until each day is re-saved through the structured editor.
+    hours: Optional[dict[str, Union[str, list[dict[str, str]]]]] = None
+    socialLinks:            Optional[dict[str, str]] = None  # e.g. {"instagram": "https://instagram.com/..."}
     ownerUserId:            Optional[str]  = None   # uid of the account that manages this listing
     selectedPlan:           Optional[str]  = None   # "freemium" | "beta" | "premium"
-    paymentStatus:          Optional[str]  = None   # None (free) | "payment_pending" — see services/billing.py
+    # paymentStatus/subscriptionStatus are only ever set by Stripe webhooks (or
+    # activate-free for Freemium) — never by plan selection. See routers/billing.py.
+    paymentStatus:          Optional[str]  = None   # None | "active"
+    subscriptionStatus:     Optional[str]  = None   # "active" | "past_due" | "canceled" | "incomplete"
+    stripeCustomerId:       Optional[str]  = None
+    stripeSubscriptionId:   Optional[str]  = None
     businessOnboardingStep: Optional[str]  = None
     businessTutorialCompleted: Optional[bool] = False
 

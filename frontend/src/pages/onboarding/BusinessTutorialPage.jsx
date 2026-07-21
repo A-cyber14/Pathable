@@ -3,14 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { getDashboardBusiness, updateDashboardBusiness, updateProfile } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import TutorialOverlay from "../../components/TutorialOverlay";
+import DashboardPreview      from "../../components/tutorial-previews/DashboardPreview";
+import AccessibilityPreview  from "../../components/tutorial-previews/AccessibilityPreview";
+import PhotosPreview         from "../../components/tutorial-previews/PhotosPreview";
+import ReviewsPreview        from "../../components/tutorial-previews/ReviewsPreview";
+import AnalyticsPreview      from "../../components/tutorial-previews/AnalyticsPreview";
+import BillingPreview        from "../../components/tutorial-previews/BillingPreview";
 
 // ---------------------------------------------------------------------------
 // BusinessTutorialPage
 // Route: /business-setup/tutorial
-// Final step of business onboarding. Skippable; reopenable later from the
-// dashboard's "Help" link. Analytics is flagged as an upgrade for Freemium —
-// no other dashboard feature is plan-gated yet since payment isn't real
-// (see backend/services/billing.py).
+// Final step of business onboarding (after payment/Freemium activation).
+// Skippable; reopenable later from the dashboard's "Help" link. Copy adapts
+// for Freemium on the Analytics/Billing steps — no feature is hidden, since
+// nothing is fake-gated behind a payment that hasn't happened.
 // ---------------------------------------------------------------------------
 
 export default function BusinessTutorialPage() {
@@ -22,16 +28,15 @@ export default function BusinessTutorialPage() {
     getDashboardBusiness().then((biz) => setPlan(biz.selectedPlan || "freemium")).catch(() => {});
   }, []);
 
+  const isFreemium = plan === "freemium";
+
   const steps = [
-    { icon: "🏢", title: "Manage your business information", description: "Update your name, address, category, phone, and hours anytime from your dashboard." },
-    { icon: "♿", title: "Update accessibility details",       description: "Keep your accessibility info current — visitors rely on it to plan their visit." },
-    { icon: "📷", title: "Upload photos",                       description: "Add more photos whenever you like, up to your plan's limit." },
-    { icon: "💬", title: "Respond to reviews",                  description: "Reply directly to reviews left by visitors." },
-    {
-      icon: "📊", title: "View analytics and manage your plan",
-      description: "See which accessibility features visitors care about most, and change your plan anytime.",
-      badge: plan === "freemium" ? "Upgrade for more" : undefined,
-    },
+    { preview: <DashboardPreview />,     title: "Your dashboard",              description: "Track profile completion and manage everything about your listing from one place." },
+    { preview: <AccessibilityPreview />, title: "Accessibility management",    description: "Keep your accessibility info current — visitors rely on it to plan their visit." },
+    { preview: <PhotosPreview />,        title: "Photo management",            description: isFreemium ? "Upload up to 3 photos on Freemium. Upgrade anytime for unlimited uploads." : "Upload as many photos as you like." },
+    { preview: <ReviewsPreview />,       title: "Review responses",            description: "Reply directly to reviews left by visitors." },
+    { preview: <AnalyticsPreview />,     title: "Analytics",                   description: isFreemium ? "See which accessibility features visitors care about most — included on Beta and Premium." : "See which accessibility features visitors care about most." , badge: isFreemium ? "Upgrade for more" : undefined },
+    { preview: <BillingPreview />,       title: "Billing",                     description: isFreemium ? "You're on the free plan — upgrade anytime from your dashboard." : "Manage your subscription, update your card, or view invoices anytime." },
   ];
 
   const handleFinish = async () => {

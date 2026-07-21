@@ -75,8 +75,8 @@ export default function BusinessPhotosPage() {
   };
 
   const finish = async () => {
-    try { await updateProfile({ onboardingStep: "business-tutorial" }); } catch { /* non-blocking */ }
-    navigate("/business-setup/tutorial");
+    try { await updateProfile({ onboardingStep: "business-review" }); } catch { /* non-blocking */ }
+    navigate("/business-setup/review");
   };
 
   if (loading) return <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb" }} />;

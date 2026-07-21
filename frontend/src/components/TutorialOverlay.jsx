@@ -2,11 +2,15 @@ import { useState, useEffect, useCallback } from "react";
 
 // ---------------------------------------------------------------------------
 // TutorialOverlay
-// Reusable short/skippable tutorial used by both the personal and business
-// onboarding flows (and re-openable later from Profile/Dashboard "Help").
+// Reusable short/skippable *visual* tutorial used by both the personal and
+// business onboarding flows (and re-openable later from Profile/Dashboard
+// "Help"). Each step shows a small built UI-preview mockup (from
+// components/tutorial-previews/) instead of a single big emoji — no
+// screenshots, so nothing here goes stale as the real UI evolves.
 //
 // Props:
-//   steps      — [{ icon, title, description, badge? }]
+//   steps      — [{ preview, title, description, badge? }] — `preview` is a
+//                small presentational React element (see tutorial-previews/)
 //   onFinish() — called after the last step's Next, or Skip, at any point
 //   heading    — optional page heading shown above the card
 // ---------------------------------------------------------------------------
@@ -42,7 +46,10 @@ export default function TutorialOverlay({ steps, onFinish, heading = "Quick tour
     >
       <div style={{ width: "100%", maxWidth: "440px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
-          <h1 style={{ fontSize: "16px", fontWeight: "700", color: "#6b7280", margin: 0 }}>{heading}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <img src="/logo.png" alt="" aria-hidden="true" style={{ width: "22px", height: "22px", objectFit: "contain", borderRadius: "5px" }} />
+            <h1 style={{ fontSize: "16px", fontWeight: "700", color: "#6b7280", margin: 0 }}>{heading}</h1>
+          </div>
           <button
             onClick={onFinish}
             aria-label="Skip tutorial"
@@ -83,7 +90,7 @@ export default function TutorialOverlay({ steps, onFinish, heading = "Quick tour
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           }}
         >
-          {step.icon && <div style={{ fontSize: "40px", marginBottom: "16px" }}>{step.icon}</div>}
+          {step.preview && <div style={{ marginBottom: "18px" }}>{step.preview}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", flexWrap: "wrap", justifyContent: "center" }}>
             <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#111827", margin: 0 }}>{step.title}</h2>
             {step.badge && (

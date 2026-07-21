@@ -31,14 +31,20 @@ export default function PersonalProfilePage() {
   const [error,     setError]     = useState(null);
 
   useEffect(() => {
+    // Guards against React StrictMode's dev-only double-invoke firing this
+    // fetch twice and a stale response overwriting anything the user has
+    // already started typing.
+    let ignore = false;
     getProfile()
       .then((data) => {
+        if (ignore) return;
         setDisabilityType(data.disabilityType || "");
         setFeaturePreferences(data.featurePreferences || []);
         setHideIdentity(data.hideIdentity ?? false);
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
   }, []);
 
   const togglePreference = (value) => {

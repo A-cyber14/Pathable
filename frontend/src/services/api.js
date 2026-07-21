@@ -79,6 +79,13 @@ export async function createFromExternal(data)      { return api.post("/api/busi
 export async function setupBusiness(data)          { return api.post("/api/users/me/setup-business", data); }
 
 // ---------------------------------------------------------------------------
+// Billing — Stripe checkout/portal for business plans
+// ---------------------------------------------------------------------------
+export async function createCheckoutSession()   { return api.post("/api/billing/create-checkout-session"); }
+export async function createPortalSession()     { return api.post("/api/billing/portal-session"); }
+export async function activateFreePlan()        { return api.post("/api/billing/activate-free"); }
+
+// ---------------------------------------------------------------------------
 // Business Dashboard — business-owner-only endpoints
 // ---------------------------------------------------------------------------
 export async function getDashboardBusiness()           { return api.get("/api/dashboard/my-business"); }

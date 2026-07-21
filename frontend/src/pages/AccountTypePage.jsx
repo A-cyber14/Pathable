@@ -64,10 +64,13 @@ export default function AccountTypePage() {
     setError(null);
 
     try {
-      const onboardingStep = type === "business" ? "plan" : "profile";
+      // Business accounts find/claim or add their listing FIRST, before
+      // choosing a plan — you shouldn't pick (or pay for) a plan before
+      // knowing you can even claim or create the right business.
+      const onboardingStep = type === "business" ? "business-search" : "profile";
       await updateProfile({ accountType: type, onboardingStep });
       await refreshProfile();
-      navigate(type === "business" ? "/business-setup/plan" : "/onboarding/profile");
+      navigate(type === "business" ? "/business-setup" : "/onboarding/profile");
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
       setSelected(null);
@@ -90,7 +93,7 @@ export default function AccountTypePage() {
     >
       {/* Header */}
       <div style={{ textAlign: "center", marginBottom: "36px" }}>
-        <div style={{ fontSize: "36px", marginBottom: "12px" }}>♿</div>
+        <img src="/logo.png" alt="Pathable" style={{ width: "56px", height: "56px", objectFit: "contain", marginBottom: "12px", borderRadius: "10px" }} />
         <h1 style={{ fontSize: "22px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>
           How will you use Pathable?
         </h1>

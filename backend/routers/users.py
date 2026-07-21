@@ -7,7 +7,6 @@ from models.business import Business
 from services.firebase import db, get_contributor_uid
 from services.scoring import calculate_accessibility_score
 from services.duplicates import find_duplicate_business_id
-from services.billing import payment_status_for_plan, PLANS
 from config import ADMIN_EMAIL
 import firebase_admin.auth as firebase_auth
 
@@ -112,7 +111,6 @@ class ProfileUpdate(BaseModel):
     # Onboarding progress — see App.jsx's ProfileGate for how these drive resuming.
     onboardingStep:          Optional[str]  = None
     userTutorialCompleted:   Optional[bool] = None
-    pendingPlan:              Optional[str] = None   # plan chosen before a business exists yet
 
 
 class SetupBusinessBody(BaseModel):
@@ -166,7 +164,6 @@ def get_profile(authorization: str = Header(...)):
             "hideIdentity":       False,
             "onboardingStep":     None,
             "userTutorialCompleted": False,
-            "pendingPlan":        None,
             **activity,
         }
 
@@ -195,7 +192,6 @@ def get_profile(authorization: str = Header(...)):
         "hideIdentity":       data.get("hideIdentity", False),
         "onboardingStep":     data.get("onboardingStep", None),
         "userTutorialCompleted": data.get("userTutorialCompleted", False),
-        "pendingPlan":        data.get("pendingPlan", None),
         **activity,
     }
 
@@ -269,14 +265,17 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # ---------------------------------------------------------------------------
 # POST /api/users/me/setup-business
-# Called during business onboarding, either to claim an existing listing
-# (claim_id) or create a new one (name+address+details).
+# Called at the very start of business onboarding (find/claim or add), either
+# to claim an existing listing (claim_id) or create a minimal new one
+# (name+address+category — the rest of the business's details are collected
+# in later onboarding steps via PUT /dashboard/my-business).
 # Sets accountType="business" and businessId on the user document, and
-# ownerUserId + the pending plan on the business document.
+# ownerUserId on the business document.
 #
 # Verification and payment are NOT required to reach the dashboard — a
 # claimed/created business gets immediate access (MVP), matching the rest
-# of the onboarding flow.
+# of the onboarding flow. Plan selection happens afterward and is handled
+# entirely by PUT /dashboard/my-business + POST /billing/*, not here.
 # ---------------------------------------------------------------------------
 
 @router.post("/me/setup-business", status_code=200)
@@ -284,10 +283,6 @@ def setup_business(body: SetupBusinessBody, authorization: str = Header(...)):
     uid = get_uid(authorization)
     user_ref = db.collection("users").document(uid)
     user_doc = user_ref.get()
-    pending_plan = user_doc.to_dict().get("pendingPlan") if user_doc.exists else None
-    plan_fields = {}
-    if pending_plan in PLANS:
-        plan_fields = {"selectedPlan": pending_plan, "paymentStatus": payment_status_for_plan(pending_plan)}
 
     if body.businessEmail and not _EMAIL_RE.match(body.businessEmail.strip()):
         raise HTTPException(status_code=422, detail="Business email is not a valid email address.")
@@ -304,12 +299,12 @@ def setup_business(body: SetupBusinessBody, authorization: str = Header(...)):
         if existing_owner and existing_owner != uid:
             raise HTTPException(
                 status_code=409,
-                detail="This business is already managed by another account. "
-                       "If that's a mistake, try adding your business as a new listing instead.",
+                detail="This business is currently managed through Pathable. "
+                       "Please contact support if ownership needs to be transferred.",
             )
 
         business_id = body.claim_id
-        biz_ref.update({"ownerUserId": uid, **plan_fields})
+        biz_ref.update({"ownerUserId": uid})
 
     elif body.name and body.address:
         duplicate_id = find_duplicate_business_id(body.name, body.address)
@@ -320,7 +315,9 @@ def setup_business(body: SetupBusinessBody, authorization: str = Header(...)):
                        "Search for it and claim it instead of creating a duplicate.",
             )
 
-        # Creating a new business entry
+        # Creating a new (intentionally minimal) business entry — name,
+        # address, and category only. Everything else is filled in later
+        # via the Information/Hours/Accessibility/Photos onboarding steps.
         # lat/lon default to 0 — can be updated later via the contribute flow
         new_biz = {
             "name":                       body.name.strip(),
@@ -341,7 +338,6 @@ def setup_business(body: SetupBusinessBody, authorization: str = Header(...)):
             "contributors_count":         0,
             "last_updated":               datetime.now(timezone.utc).isoformat(),
             "ownerUserId":                uid,
-            **plan_fields,
         }
         if body.website:
             new_biz["website"] = body.website.strip()
@@ -364,7 +360,7 @@ def setup_business(body: SetupBusinessBody, authorization: str = Header(...)):
         )
 
     # ── Update user doc ─────────────────────────────────────────────────────
-    user_data = {"accountType": "business", "businessId": business_id, "pendingPlan": None}
+    user_data = {"accountType": "business", "businessId": business_id}
 
     if user_doc.exists:
         user_ref.update(user_data)

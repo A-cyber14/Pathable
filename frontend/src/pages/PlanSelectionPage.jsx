@@ -1,111 +1,61 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { updateProfile, getDashboardBusiness, updateDashboardBusiness } from "../services/api";
+import { getDashboardBusiness, updateDashboardBusiness, updateProfile } from "../services/api";
 import { useIsMobile } from "../hooks/useIsMobile";
+import { PLANS } from "../constants/plans";
 
 // ---------------------------------------------------------------------------
 // PlanSelectionPage
 // Route: /business-setup/plan
 //
-// Used both as the first step of business onboarding (no business exists
-// yet — selection is stashed on the user doc as pendingPlan until the
-// business is created/claimed) and as "Manage plan" from the dashboard
-// (business already exists — selection is saved directly to it).
+// Always runs against an existing business (claimed or just created in the
+// prior step) — this page only ever records selectedPlan on it via
+// PUT /dashboard/my-business. It does NOT activate anything: Freemium is
+// activated on the Review step (POST /billing/activate-free), and Beta/
+// Premium are only activated once Stripe confirms payment via webhook.
 //
-// No payment is collected here — see backend/services/billing.py for where
-// Stripe would plug in. Freemium is free and immediate; Beta/Premium are
-// saved as payment_pending.
+// Used both during onboarding (continues to Information) and as "Manage
+// plan" from the dashboard (onboardingStep is already "complete" — returns
+// to the dashboard instead of continuing the onboarding chain).
 // ---------------------------------------------------------------------------
-
-const PLANS = [
-  {
-    id: "freemium",
-    name: "Freemium",
-    price: "Free",
-    cadence: "",
-    cta: "Continue for Free",
-    features: [
-      "Basic business accessibility profile",
-      "Display accessibility information",
-      "Upload up to 3 photos",
-      "Appear in Pathable search results",
-      "Update business information",
-    ],
-  },
-  {
-    id: "beta",
-    name: "Beta",
-    price: "$4.99",
-    cadence: "/month",
-    badge: "Limited Availability",
-    cta: "Join Beta",
-    features: [
-      "Everything in Freemium",
-      "Early access to new features",
-      "Priority onboarding support",
-      "Beta feedback opportunities",
-      "Up to 15 photos",
-    ],
-  },
-  {
-    id: "premium",
-    name: "Premium",
-    price: "$14.99",
-    cadence: "/month",
-    recommended: true,
-    cta: "Choose Premium",
-    features: [
-      "Accessibility analytics",
-      "Respond to reviews",
-      "Unlimited media uploads",
-      "Additional business insights",
-      "Premium business management tools",
-    ],
-  },
-];
 
 export default function PlanSelectionPage() {
   const { userProfile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const isManaging = userProfile?.onboardingStep === "complete";
 
-  const isManaging = !!userProfile?.businessId; // "Manage plan" from the dashboard, vs. fresh onboarding
   const [selected,   setSelected]   = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        if (isManaging) {
-          const biz = await getDashboardBusiness();
-          setSelected(biz.selectedPlan || null);
-        } else {
-          setSelected(userProfile?.pendingPlan || null);
-        }
-      } catch {
-        // fine to start with nothing selected
-      } finally {
-        setLoading(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isManaging]);
+    // React StrictMode double-invokes effects in dev, firing this fetch
+    // twice — `ignore` makes sure only the effect instance that's still
+    // "current" when its response arrives is allowed to apply it, so a
+    // stale response can never stomp state after the real one already has.
+    let ignore = false;
+    getDashboardBusiness()
+      .then((biz) => { if (!ignore) setSelected(biz.selectedPlan || null); })
+      .catch(() => {})
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
+  }, []);
 
   const handleContinue = async () => {
     if (!selected || saving) return;
     setSaving(true);
     setError(null);
     try {
+      await updateDashboardBusiness({ selectedPlan: selected });
       if (isManaging) {
-        await updateDashboardBusiness({ selectedPlan: selected });
         navigate("/business-profile");
       } else {
-        await updateProfile({ pendingPlan: selected, onboardingStep: "business-search" });
+        try { await updateProfile({ onboardingStep: "business-information" }); } catch { /* non-blocking */ }
         await refreshProfile();
-        navigate("/business-setup");
+        navigate("/business-setup/information");
       }
     } catch (err) {
       setError(err.message || "Failed to save your plan. Please try again.");
@@ -120,16 +70,15 @@ export default function PlanSelectionPage() {
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: isMobile ? "28px 16px 100px" : "48px 24px" }}>
       <div style={{ maxWidth: "980px", margin: "0 auto" }}>
 
-        {isManaging && (
-          <button
-            onClick={() => navigate("/business-profile")}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "14px", padding: 0, marginBottom: "20px" }}
-          >
-            ← Back to dashboard
-          </button>
-        )}
+        <button
+          onClick={() => navigate(isManaging ? "/business-profile" : "/business-setup")}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "14px", padding: 0, marginBottom: "20px" }}
+        >
+          ← Back{isManaging ? " to dashboard" : ""}
+        </button>
 
         <div style={{ textAlign: "center", marginBottom: isMobile ? "28px" : "40px" }}>
+          <img src="/logo.png" alt="Pathable" style={{ width: "40px", height: "40px", objectFit: "contain", marginBottom: "14px", borderRadius: "9px" }} />
           <h1 style={{ fontSize: isMobile ? "24px" : "30px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>
             Choose the plan that fits your business
           </h1>
@@ -162,7 +111,7 @@ export default function PlanSelectionPage() {
                   flex:            1,
                   display:         "flex",
                   flexDirection:   "column",
-                  backgroundColor: plan.recommended && !isSelected ? "#fff" : "#fff",
+                  backgroundColor: "#fff",
                   border:          isSelected ? "2px solid #2563eb" : plan.recommended ? "2px solid #c7d2fe" : "1.5px solid #e5e7eb",
                   borderRadius:    "16px",
                   padding:         "26px 22px",

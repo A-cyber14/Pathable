@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import businesses, reviews, users, admin, dashboard
+from routers import businesses, reviews, users, admin, dashboard, billing
 
 app = FastAPI(
     title="Pathable API",
@@ -44,6 +44,7 @@ app.include_router(reviews.router,   prefix="/api/reviews",    tags=["reviews"])
 app.include_router(users.router,     prefix="/api/users",      tags=["users"])
 app.include_router(admin.router,     prefix="/api/admin",      tags=["admin"])
 app.include_router(dashboard.router, prefix="/api/dashboard",  tags=["dashboard"])
+app.include_router(billing.router,   prefix="/api/billing",    tags=["billing"])
 
 
 @app.on_event("startup")
@@ -52,6 +53,10 @@ def check_env():
     required = {
         "GOOGLE_MAPS_API_KEY":        "external Places search (search-unified)",
         "GOOGLE_APPLICATION_CREDENTIALS": "Firestore / Firebase Admin",
+        "STRIPE_SECRET_KEY":          "business plan checkout/billing (routers/billing.py)",
+        "STRIPE_WEBHOOK_SECRET":      "verifying Stripe webhook events",
+        "STRIPE_BETA_PRICE_ID":       "Beta plan checkout",
+        "STRIPE_PREMIUM_PRICE_ID":    "Premium plan checkout",
     }
     for var, purpose in required.items():
         if not os.getenv(var):

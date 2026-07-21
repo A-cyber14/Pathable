@@ -1,46 +1,32 @@
 # ---------------------------------------------------------------------------
 # Billing / plans
 #
-# No payment provider is wired up yet — there is no Stripe (or other) secret
-# configured anywhere in this project. Paid plans are recorded with a
-# "payment_pending" status so the UI can be honest about it instead of
-# pretending a purchase happened.
-#
-# Where Stripe would plug in later:
-#   1. When a business selects "beta" or "premium" in setup_business
-#      (backend/routers/users.py), create a Stripe Checkout Session instead
-#      of (or in addition to) writing payment_pending, and redirect the
-#      owner to session.url.
-#   2. Add POST /api/billing/webhook (new router) that verifies the Stripe
-#      signature with STRIPE_WEBHOOK_SECRET and, on checkout.session.completed,
-#      flips the business's paymentStatus to "active" and stores
-#      stripeCustomerId / stripeSubscriptionId on the business doc.
-#   3. "Manage plan" in the dashboard would link to the Stripe customer
-#      portal instead of just re-opening the plan-selection screen.
+# Plan selection (routers/dashboard.py's update_my_business) only ever
+# records selectedPlan — it never sets paymentStatus/subscriptionStatus.
+# Those are set by:
+#   - POST /api/billing/activate-free (Freemium — no payment involved)
+#   - The Stripe webhook, POST /api/billing/webhook (Beta/Premium — only
+#     after Stripe actually confirms payment; see routers/billing.py and
+#     services/stripe_billing.py)
+# This keeps "a plan is selected" and "a plan is paid for and active"
+# strictly separate, so nothing pretends a purchase happened.
 # ---------------------------------------------------------------------------
 
 PLANS = {"freemium", "beta", "premium"}
 
-# Freemium is free — no payment concept needed. Beta/Premium require payment
-# that isn't implemented yet, so they're recorded as pending.
-PAYMENT_STATUS_BY_PLAN = {
-    "freemium": None,
-    "beta":     "payment_pending",
-    "premium":  "payment_pending",
-}
+# The Beta plan is capped at the first 100 businesses that select it.
+# Businesses that already have selectedPlan == "beta" keep their access even
+# if the cap is reached later — only *new* selections are blocked.
+# Enforced in routers/dashboard.py's update_my_business.
+BETA_BUSINESS_CAP = 100
 
 # Owner-uploaded photo caps, enforced server-side in routers/businesses.py.
-# Beta's limit isn't specified anywhere in the product — 15 is a placeholder
-# pending a real product decision; Premium is unlimited (None).
+# None means unlimited.
 PLAN_PHOTO_LIMITS = {
     "freemium": 3,
-    "beta":     15,
+    "beta":     None,
     "premium":  None,
 }
-
-
-def payment_status_for_plan(plan: str | None) -> str | None:
-    return PAYMENT_STATUS_BY_PLAN.get(plan)
 
 
 def photo_limit_for_plan(plan: str | None) -> int | None:

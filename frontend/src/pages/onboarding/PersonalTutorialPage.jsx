@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { updateProfile } from "../../services/api";
 import TutorialOverlay from "../../components/TutorialOverlay";
+import SearchPreview       from "../../components/tutorial-previews/SearchPreview";
+import AccessibilityPreview from "../../components/tutorial-previews/AccessibilityPreview";
+import BookmarkPreview      from "../../components/tutorial-previews/BookmarkPreview";
+import ReviewsPreview       from "../../components/tutorial-previews/ReviewsPreview";
 
 // ---------------------------------------------------------------------------
 // PersonalTutorialPage
@@ -12,10 +16,10 @@ import TutorialOverlay from "../../components/TutorialOverlay";
 // ---------------------------------------------------------------------------
 
 const STEPS = [
-  { icon: "🔍", title: "Search for places",                          description: "Find accessible locations near you on the map or by name." },
-  { icon: "♿", title: "Filter by accessibility features",            description: "Narrow results down to exactly the features you need — parking, entrances, restrooms, and more." },
-  { icon: "🔖", title: "Save favorite locations",                     description: "Bookmark places to quickly find them again later." },
-  { icon: "📷", title: "Add reviews, photos, and contributions",      description: "Help others by sharing what you find — reviews, photos, and accessibility details all count." },
+  { preview: <SearchPreview />,       title: "Search for places",                     description: "Find accessible locations near you on the map or by name." },
+  { preview: <AccessibilityPreview />, title: "Filter by accessibility features",       description: "Narrow results down to exactly the features you need — parking, entrances, restrooms, and more." },
+  { preview: <BookmarkPreview />,      title: "Save favorite locations",                description: "Bookmark places to quickly find them again later." },
+  { preview: <ReviewsPreview />,       title: "Add reviews, photos, and contributions", description: "Help others by sharing what you find — reviews, photos, and accessibility details all count." },
 ];
 
 export default function PersonalTutorialPage() {

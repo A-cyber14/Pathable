@@ -17,8 +17,13 @@ import AdminPage              from "./pages/AdminPage";
 import PersonalProfilePage    from "./pages/onboarding/PersonalProfilePage";
 import PersonalTutorialPage   from "./pages/onboarding/PersonalTutorialPage";
 import NewBusinessInfoPage    from "./pages/onboarding/NewBusinessInfoPage";
+import BusinessInformationPage from "./pages/onboarding/BusinessInformationPage";
+import BusinessHoursPage      from "./pages/onboarding/BusinessHoursPage";
 import BusinessAccessibilityPage from "./pages/onboarding/BusinessAccessibilityPage";
 import BusinessPhotosPage     from "./pages/onboarding/BusinessPhotosPage";
+import BusinessReviewPage     from "./pages/onboarding/BusinessReviewPage";
+import PaymentSuccessPage     from "./pages/onboarding/PaymentSuccessPage";
+import PaymentCancelPage      from "./pages/onboarding/PaymentCancelPage";
 import BusinessTutorialPage   from "./pages/onboarding/BusinessTutorialPage";
 import ProtectedRoute         from "./components/ProtectedRoute";
 import Navbar                 from "./components/Navbar";
@@ -39,14 +44,20 @@ import { useIsMobile }        from "./hooks/useIsMobile";
 const ONBOARDING_PATHS = ["/account-type", "/login", "/admin"];
 const ONBOARDING_PATH_PREFIXES = ["/onboarding", "/business-setup"];
 
+// Business flow order: Business → Plan → Information → Hours →
+// Accessibility → Photos → Review → Payment (paid only) → Tutorial → Dashboard
 const STEP_TO_PATH = {
   profile:                    "/onboarding/profile",
   tutorial:                   "/onboarding/tutorial",
-  plan:                       "/business-setup/plan",
   "business-search":          "/business-setup",
-  "business-info":            "/business-setup/information",
+  "business-new":             "/business-setup/new",
+  "business-plan":            "/business-setup/plan",
+  "business-information":     "/business-setup/information",
+  "business-hours":           "/business-setup/hours",
   "business-accessibility":   "/business-setup/accessibility",
   "business-photos":          "/business-setup/photos",
+  "business-review":          "/business-setup/review",
+  "business-payment":         "/business-setup/review", // Stripe redirects out; resume back at Review if interrupted
   "business-tutorial":        "/business-setup/tutorial",
 };
 
@@ -125,14 +136,21 @@ export default function App() {
             <Route path="/login"          element={<LoginPage />} />
 
             {/* Onboarding — auth required, but no accountType / role check */}
-            <Route path="/account-type"                    element={<ProtectedRoute><AccountTypePage /></ProtectedRoute>} />
-            <Route path="/onboarding/profile"               element={<ProtectedRoute><PersonalProfilePage /></ProtectedRoute>} />
-            <Route path="/onboarding/tutorial"              element={<ProtectedRoute><PersonalTutorialPage /></ProtectedRoute>} />
+            <Route path="/account-type"                  element={<ProtectedRoute><AccountTypePage /></ProtectedRoute>} />
+            <Route path="/onboarding/profile"             element={<ProtectedRoute><PersonalProfilePage /></ProtectedRoute>} />
+            <Route path="/onboarding/tutorial"            element={<ProtectedRoute><PersonalTutorialPage /></ProtectedRoute>} />
+
+            {/* Business onboarding — find/add business FIRST, then plan */}
+            <Route path="/business-setup"                 element={<ProtectedRoute><BusinessSetupPage /></ProtectedRoute>} />
+            <Route path="/business-setup/new"              element={<ProtectedRoute><NewBusinessInfoPage /></ProtectedRoute>} />
             <Route path="/business-setup/plan"              element={<ProtectedRoute><PlanSelectionPage /></ProtectedRoute>} />
-            <Route path="/business-setup"                   element={<ProtectedRoute><BusinessSetupPage /></ProtectedRoute>} />
-            <Route path="/business-setup/information"       element={<ProtectedRoute><NewBusinessInfoPage /></ProtectedRoute>} />
+            <Route path="/business-setup/information"       element={<ProtectedRoute><BusinessInformationPage /></ProtectedRoute>} />
+            <Route path="/business-setup/hours"              element={<ProtectedRoute><BusinessHoursPage /></ProtectedRoute>} />
             <Route path="/business-setup/accessibility"     element={<ProtectedRoute><BusinessAccessibilityPage /></ProtectedRoute>} />
             <Route path="/business-setup/photos"             element={<ProtectedRoute><BusinessPhotosPage /></ProtectedRoute>} />
+            <Route path="/business-setup/review"             element={<ProtectedRoute><BusinessReviewPage /></ProtectedRoute>} />
+            <Route path="/business-setup/payment/success"    element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
+            <Route path="/business-setup/payment/cancel"     element={<ProtectedRoute><PaymentCancelPage /></ProtectedRoute>} />
             <Route path="/business-setup/tutorial"           element={<ProtectedRoute><BusinessTutorialPage /></ProtectedRoute>} />
 
             {/* Regular-user-only pages — business users are redirected away */}

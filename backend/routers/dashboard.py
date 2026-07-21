@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime, timezone
 from services.firebase import db
-from services.billing import payment_status_for_plan, PLANS
+from services.billing import PLANS, BETA_BUSINESS_CAP
 import firebase_admin.auth as firebase_auth
 
 router = APIRouter()
@@ -61,7 +61,8 @@ class BusinessProfileUpdate(BaseModel):
     businessEmail:   Optional[str]  = None
     businessEmailPublic: Optional[bool] = None
     website:         Optional[str]  = None
-    hours:           Optional[dict[str, str]] = None
+    socialLinks:     Optional[dict[str, str]] = None
+    hours:           Optional[dict[str, Union[str, list[dict[str, str]]]]] = None
     # Accessibility — tri-state (True/False/None = Yes/No/Unsure), same fields as ACCESSIBILITY_FIELDS
     wheelchair_accessible:        Optional[bool] = None
     accessible_parking:           Optional[bool] = None
@@ -155,9 +156,23 @@ def update_my_business(body: BusinessProfileUpdate, authorization: str = Header(
             update_data[key] = update_data[key].strip()
 
     if "selectedPlan" in update_data:
-        if update_data["selectedPlan"] not in PLANS:
+        new_plan = update_data["selectedPlan"]
+        if new_plan not in PLANS:
             raise HTTPException(status_code=422, detail="Unknown plan.")
-        update_data["paymentStatus"] = payment_status_for_plan(update_data["selectedPlan"])
+
+        current_plan = ref.get().to_dict().get("selectedPlan")
+        if new_plan == "beta" and current_plan != "beta":
+            # Only businesses newly selecting Beta count against the cap —
+            # businesses that already have it keep their access.
+            beta_count = sum(
+                1 for _ in db.collection("businesses").where("selectedPlan", "==", "beta").stream()
+            )
+            if beta_count >= BETA_BUSINESS_CAP:
+                raise HTTPException(status_code=422, detail="Beta is currently full. Please choose a different plan.")
+
+        # Plan selection never activates anything by itself — paymentStatus/
+        # subscriptionStatus only change via the Stripe webhook or
+        # POST /billing/activate-free (Freemium). See services/billing.py.
 
     if update_data:
         update_data["last_updated"] = datetime.now(timezone.utc).isoformat()

@@ -31,8 +31,13 @@ export default function BusinessAccessibilityPage() {
   const [error,    setError]    = useState(null);
 
   useEffect(() => {
+    // Guards against React StrictMode's dev-only double-invoke firing this
+    // fetch twice and a stale response overwriting anything the user has
+    // already started editing.
+    let ignore = false;
     getDashboardBusiness()
       .then((biz) => {
+        if (ignore) return;
         const v = {};
         BUSINESS_ACCESSIBILITY_FEATURES.forEach(({ key }) => { v[key] = biz[key] ?? null; });
         setValues(v);
@@ -42,8 +47,9 @@ export default function BusinessAccessibilityPage() {
         setNotes(biz.accessibilityNotes || {});
         setEntranceWidth(biz.entrance_width_rating || "");
       })
-      .catch(() => setError("Failed to load your business's accessibility details."))
-      .finally(() => setLoading(false));
+      .catch(() => { if (!ignore) setError("Failed to load your business's accessibility details."); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
   }, []);
 
   const handleSubmit = async () => {

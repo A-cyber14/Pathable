@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { setupBusiness, searchBusinesses } from "../services/api";
+import { setupBusiness, searchBusinesses, updateProfile } from "../services/api";
 
 // ---------------------------------------------------------------------------
 // BusinessSetupPage
 // Route: /business-setup
-// Reached after plan selection. Lets the owner search all Pathable listings
-// (verified and unverified — search already covers both), claim an
-// unclaimed one, or add a brand new business if theirs isn't listed yet.
+// First business-specific onboarding step (before plan selection — you
+// shouldn't pick a plan before knowing you can claim/create the right
+// business). Lets the owner search all Pathable listings (verified and
+// unverified — search already covers both), claim an unclaimed one, or add
+// a brand new business if theirs isn't listed yet.
 // ---------------------------------------------------------------------------
 
 const inputStyle = {
@@ -64,7 +66,8 @@ export default function BusinessSetupPage() {
     try {
       await setupBusiness({ claim_id: biz.id });
       await refreshProfile();
-      navigate("/business-setup/information", { state: { businessId: biz.id } });
+      try { await updateProfile({ onboardingStep: "business-plan" }); } catch { /* non-blocking */ }
+      navigate("/business-setup/plan");
     } catch (err) {
       setError(err.message || "Failed to claim this business. Please try again.");
     } finally {
@@ -72,7 +75,7 @@ export default function BusinessSetupPage() {
     }
   };
 
-  const handleAddNew = () => navigate("/business-setup/information");
+  const handleAddNew = () => navigate("/business-setup/new");
 
   return (
     <div

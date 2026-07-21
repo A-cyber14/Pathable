@@ -8,10 +8,10 @@ import {
   getDashboardAnalytics,
   respondToReview,
   getBusinessPhotos,
+  createPortalSession,
 } from "../services/api";
-import { BUSINESS_ACCESSIBILITY_FEATURES } from "../constants/accessibility";
-
-const PLAN_LABELS = { freemium: "Freemium", beta: "Beta", premium: "Premium" };
+import { PLAN_LABELS } from "../constants/plans";
+import { getCompletionChecklist } from "../utils/profileCompletion";
 
 // ---------------------------------------------------------------------------
 // Style tokens — identical to the rest of Pathable
@@ -265,6 +265,9 @@ export default function BusinessProfilePage() {
   const [saved,       setSaved]       = useState(false);
   const [saveErr,     setSaveErr]     = useState(null);
 
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError,   setPortalError]   = useState(null);
+
   useEffect(() => {
     if (!currentUser) return;
     (async () => {
@@ -326,6 +329,19 @@ export default function BusinessProfilePage() {
     setReviews((prev) =>
       prev.map((r) => r.id === reviewId ? { ...r, response: { message, createdAt: new Date().toISOString() } } : r)
     );
+  };
+
+  const handleManageBilling = async () => {
+    if (portalLoading) return;
+    setPortalLoading(true);
+    setPortalError(null);
+    try {
+      const { url } = await createPortalSession();
+      window.location.href = url;
+    } catch (e) {
+      setPortalError(e.message || "Billing portal is not available right now.");
+      setPortalLoading(false);
+    }
   };
 
   // ── Loading / error states ────────────────────────────────────────────────
@@ -417,12 +433,7 @@ export default function BusinessProfilePage() {
             <div style={{ width: `${business.profileCompletion ?? 0}%`, height: "100%", backgroundColor: "#16a34a", borderRadius: "999px", transition: "width 0.4s ease" }} />
           </div>
 
-          {[
-            { label: "Business information", done: !!(business.name && business.address && business.category && business.phone), to: "/business-setup/information" },
-            { label: "Operating hours",       done: !!(business.hours && Object.keys(business.hours).length > 0),                to: "/business-setup/information" },
-            { label: "Accessibility information", done: BUSINESS_ACCESSIBILITY_FEATURES.some((f) => business[f.key] != null), to: "/business-setup/accessibility" },
-            { label: "Photos",                done: photos.length > 0,                                                          to: "/business-setup/photos" },
-          ].map(({ label, done, to }) => (
+          {getCompletionChecklist(business, photos.length).map(({ label, done, to }) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
               <span style={{ fontSize: "13px", color: "#374151", display: "flex", alignItems: "center", gap: "8px" }}>
                 <span aria-hidden="true" style={{ color: done ? "#16a34a" : "#d1d5db" }}>{done ? "✓" : "○"}</span>
@@ -430,7 +441,7 @@ export default function BusinessProfilePage() {
               </span>
               {!done && (
                 <button
-                  onClick={() => navigate(to, { state: { businessId: business.id } })}
+                  onClick={() => navigate(to)}
                   style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: "600", cursor: "pointer", padding: 0 }}
                 >
                   {label === "Photos" ? "Upload photos" : "Complete"}
@@ -444,22 +455,41 @@ export default function BusinessProfilePage() {
               <div style={{ fontSize: "12px", color: "#9ca3af" }}>Current plan</div>
               <div style={{ fontSize: "14px", fontWeight: "700", color: "#111827" }}>
                 {PLAN_LABELS[business.selectedPlan] || "No plan selected"}
-                {business.paymentStatus === "payment_pending" && (
+                {business.selectedPlan && business.selectedPlan !== "freemium" && business.subscriptionStatus !== "active" && (
                   <span style={{ marginLeft: "8px", fontSize: "11px", fontWeight: "600", color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "999px", padding: "1px 8px" }}>
-                    Payment setup coming soon
+                    {business.subscriptionStatus === "past_due" ? "Payment failed" : "Payment pending"}
                   </span>
                 )}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "12px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button onClick={() => navigate("/business-setup/tutorial")} style={{ background: "none", border: "none", color: "#6b7280", fontSize: "12px", fontWeight: "600", cursor: "pointer", padding: 0 }}>
                 Help
               </button>
               <button onClick={() => navigate("/business-setup/plan")} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: "600", cursor: "pointer", padding: 0 }}>
                 Manage plan
               </button>
+              {business.subscriptionStatus === "past_due" && (
+                <button
+                  onClick={handleManageBilling}
+                  disabled={portalLoading}
+                  style={{ background: "none", border: "none", color: "#dc2626", fontSize: "12px", fontWeight: "700", cursor: portalLoading ? "not-allowed" : "pointer", padding: 0 }}
+                >
+                  Retry Payment
+                </button>
+              )}
+              {business.stripeSubscriptionId && (
+                <button
+                  onClick={handleManageBilling}
+                  disabled={portalLoading}
+                  style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: "600", cursor: portalLoading ? "not-allowed" : "pointer", padding: 0 }}
+                >
+                  {portalLoading ? "Opening…" : "Manage Billing"}
+                </button>
+              )}
             </div>
           </div>
+          {portalError && <p role="alert" style={{ color: "#dc2626", fontSize: "12px", margin: "8px 0 0" }}>{portalError}</p>}
         </div>
 
         {/* ── Quick stats ── */}
