@@ -1,46 +1,40 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { getReviewSummary, getBusinessReviews } from "../services/api";
 import StarRating from "./StarRating";
 import ReviewModal from "./ReviewModal";
 import ReviewFormModal from "./ReviewFormModal";
 
-export default function CommunityRating({ businessId }) {
-  const [summary,       setSummary]       = useState(null);
-  const [reviews,       setReviews]       = useState([]);
-  const [dropdownOpen,  setDropdownOpen]  = useState(false);
-  const [reviewsOpen,   setReviewsOpen]   = useState(false);
-  const [formOpen,      setFormOpen]      = useState(false);
-  const dropdownRef = useRef(null);
+// ---------------------------------------------------------------------------
+// CommunityRating
+// Clicking the rating opens ONE reviews modal (breakdown + list together) —
+// no intermediate dropdown, no nested modals.
+// ---------------------------------------------------------------------------
+export default function CommunityRating({ businessId, onContribute }) {
+  const [summary,        setSummary]        = useState(null);
+  const [reviews,        setReviews]        = useState([]);
+  const [reviewsOpen,    setReviewsOpen]    = useState(false);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [formOpen,       setFormOpen]       = useState(false);
+  const [hovered,        setHovered]        = useState(false);
+  const [contribHovered, setContribHovered] = useState(false);
 
   const fetchSummary = () =>
     getReviewSummary(businessId)
       .then(setSummary)
       .catch(() => {});
 
-  const fetchReviews = () =>
-    getBusinessReviews(businessId)
-      .then(setReviews)
-      .catch(() => {});
-
   useEffect(() => {
     fetchSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const handleReadAllReviews = () => {
-    fetchReviews();
-    setDropdownOpen(false);
+  const openReviews = () => {
     setReviewsOpen(true);
+    setReviewsLoading(true);
+    getBusinessReviews(businessId)
+      .then(setReviews)
+      .catch(() => {})
+      .finally(() => setReviewsLoading(false));
   };
 
   const handleWriteReview = () => {
@@ -50,131 +44,84 @@ export default function CommunityRating({ businessId }) {
 
   const handleReviewSuccess = () => {
     fetchSummary();
-    fetchReviews();
+    openReviews();
   };
 
   const avg   = summary?.average_rating ?? 0;
   const count = summary?.review_count   ?? 0;
 
-  const breakdown = summary?.breakdown ?? { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-  const maxBar    = Math.max(...Object.values(breakdown), 1);
-
   return (
     <>
       <div style={{ marginBottom: "28px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-          <span style={{ fontSize: "16px" }}>⭐</span>
-          <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" }}>
-            Community Rating
-          </h2>
-        </div>
+        <h2 style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          Community Rating
+        </h2>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <button
+            onClick={openReviews}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            aria-label={`View ${count} review${count === 1 ? "" : "s"}. Average rating ${avg.toFixed(1)} out of 5.`}
+            style={{
+              display:         "flex",
+              alignItems:      "center",
+              gap:             "8px",
+              background:      hovered ? "#f9fafb" : "#fff",
+              border:          `1px solid ${hovered ? "#d1d5db" : "#e5e7eb"}`,
+              borderRadius:    "10px",
+              padding:         "8px 14px",
+              cursor:          "pointer",
+              boxShadow:       hovered ? "0 2px 6px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.06)",
+              transition:      "background-color 0.15s, border-color 0.15s, box-shadow 0.15s",
+            }}
+          >
+            <StarRating value={avg} size={18} />
+            <span style={{ fontSize: "16px", fontWeight: "700", color: "#111827" }}>
+              {count > 0 ? avg.toFixed(1) : "—"}
+            </span>
+            <span style={{ fontSize: "13px", color: "#6b7280" }}>
+              ({count} {count === 1 ? "review" : "reviews"})
+            </span>
+            <span aria-hidden="true" style={{ fontSize: "14px", color: "#9ca3af" }}>›</span>
+          </button>
 
-          {/* Trigger: stars + avg + count + chevron */}
-          <div ref={dropdownRef} style={{ position: "relative" }}>
+          {onContribute && (
             <button
-              onClick={() => setDropdownOpen((v) => !v)}
+              data-tour="contribute"
+              onClick={onContribute}
+              onMouseEnter={() => setContribHovered(true)}
+              onMouseLeave={() => setContribHovered(false)}
               style={{
                 display:         "flex",
                 alignItems:      "center",
-                gap:             "8px",
-                background:      "none",
-                border:          "1px solid #e5e7eb",
+                gap:             "6px",
+                background:      contribHovered ? "#dbeafe" : "#eff6ff",
+                border:          "1px solid #bfdbfe",
                 borderRadius:    "10px",
                 padding:         "8px 14px",
+                fontSize:        "13px",
+                fontWeight:      "600",
+                color:           "#2563eb",
                 cursor:          "pointer",
-                backgroundColor: "#fff",
-                boxShadow:       "0 1px 3px rgba(0,0,0,0.06)",
+                transition:      "background-color 0.15s",
               }}
             >
-              <StarRating value={avg} size={18} />
-              <span style={{ fontSize: "16px", fontWeight: "700", color: "#111827" }}>
-                {count > 0 ? avg.toFixed(1) : "—"}
-              </span>
-              <span style={{ fontSize: "13px", color: "#6b7280" }}>
-                ({count} {count === 1 ? "review" : "reviews"})
-              </span>
-              <span style={{ fontSize: "12px", color: "#9ca3af" }}>▾</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Contribute information
             </button>
-
-            {/* Dropdown breakdown */}
-            {dropdownOpen && (
-              <div style={{
-                position:        "absolute",
-                top:             "calc(100% + 8px)",
-                left:            0,
-                width:           "320px",
-                backgroundColor: "#fff",
-                border:          "1px solid #e5e7eb",
-                borderRadius:    "14px",
-                boxShadow:       "0 8px 32px rgba(0,0,0,0.12)",
-                zIndex:          50,
-                overflow:        "hidden",
-              }}>
-                {/* Top: big avg + stars + bar chart */}
-                <div style={{ display: "flex", gap: "0", padding: "20px" }}>
-
-                  {/* Left: avg number */}
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minWidth: "90px", paddingRight: "20px", borderRight: "1px solid #f3f4f6" }}>
-                    <span style={{ fontSize: "42px", fontWeight: "800", color: "#111827", lineHeight: 1 }}>
-                      {count > 0 ? avg.toFixed(1) : "—"}
-                    </span>
-                    <span style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>Out of 5</span>
-                    <div style={{ marginTop: "6px" }}>
-                      <StarRating value={avg} size={13} />
-                    </div>
-                  </div>
-
-                  {/* Right: bar chart */}
-                  <div style={{ flex: 1, paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "5px", justifyContent: "center" }}>
-                    {[5, 4, 3, 2, 1].map((star) => {
-                      const n    = breakdown[star] ?? 0;
-                      const pct  = Math.round((n / maxBar) * 100);
-                      return (
-                        <div key={star} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontSize: "12px", color: "#374151", width: "38px", whiteSpace: "nowrap" }}>
-                            {star} Star
-                          </span>
-                          <div style={{ flex: 1, height: "8px", backgroundColor: "#f3f4f6", borderRadius: "999px", overflow: "hidden" }}>
-                            <div style={{ width: `${pct}%`, height: "100%", backgroundColor: "#22c55e", borderRadius: "999px", transition: "width 0.3s" }} />
-                          </div>
-                          <span style={{ fontSize: "12px", color: "#6b7280", width: "24px", textAlign: "right" }}>{n}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Bottom: read all reviews */}
-                <button
-                  onClick={handleReadAllReviews}
-                  style={{
-                    display:         "block",
-                    width:           "100%",
-                    padding:         "14px 20px",
-                    background:      "none",
-                    border:          "none",
-                    borderTop:       "1px solid #f3f4f6",
-                    cursor:          "pointer",
-                    fontSize:        "14px",
-                    fontWeight:      "600",
-                    color:           "#111827",
-                    textAlign:       "center",
-                  }}
-                >
-                  Read all reviews ›
-                </button>
-              </div>
-            )}
-          </div>
-
+          )}
         </div>
       </div>
 
       {reviewsOpen && (
         <ReviewModal
+          summary={summary}
           reviews={reviews}
+          loading={reviewsLoading}
           onClose={() => setReviewsOpen(false)}
           onWriteReview={handleWriteReview}
         />

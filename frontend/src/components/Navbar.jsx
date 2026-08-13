@@ -49,9 +49,9 @@ function ShieldIcon() {
 // ---------------------------------------------------------------------------
 
 const USER_NAV_ITEMS = [
-  { path: "/profile",          icon: <PersonIcon />,       label: "Profile",  shortLabel: "Profile"  },
+  { path: "/profile",          icon: <PersonIcon />,       label: "Profile",  shortLabel: "Profile", tourId: "nav-profile"   },
   { path: "/",                 icon: <MapPinIcon />,        label: "Map",      shortLabel: "Home"     },
-  { path: "/bookmarks",        icon: <BookmarkSVGIcon />,   label: "Bookmarks",shortLabel: "Saved"    },
+  { path: "/bookmarks",        icon: <BookmarkSVGIcon />,   label: "Bookmarks",shortLabel: "Saved",   tourId: "nav-bookmarks" },
 ];
 
 const BUSINESS_NAV_ITEMS = [
@@ -111,12 +111,13 @@ export default function Navbar() {
         paddingBottom:   "env(safe-area-inset-bottom, 0)",
         zIndex:          100,
       }}>
-        {navItems.map(({ path, icon, shortLabel, label }) => {
+        {navItems.map(({ path, icon, shortLabel, label, tourId }) => {
           const active = isActive(path);
           return (
             <Link
               key={path}
               to={path}
+              data-tour={tourId}
               style={{
                 display:        "flex",
                 flexDirection:  "column",
@@ -181,13 +182,14 @@ export default function Navbar() {
 
       {/* Nav items */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-        {navItems.map(({ path, icon, label }) => {
+        {navItems.map(({ path, icon, label, tourId }) => {
           const active = isActive(path);
           return (
             <Link
               key={path}
               to={path}
               title={label}
+              data-tour={tourId}
               onMouseEnter={() => setHovered(path)}
               onMouseLeave={() => setHovered(null)}
               style={{

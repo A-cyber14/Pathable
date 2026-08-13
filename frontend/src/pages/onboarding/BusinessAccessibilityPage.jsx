@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getDashboardBusiness, updateDashboardBusiness, updateProfile } from "../../services/api";
 import { BUSINESS_ACCESSIBILITY_FEATURES, ENTRANCE_WIDTH_OPTIONS } from "../../constants/accessibility";
 import TriToggle from "../../components/TriToggle";
+import { useToast } from "../../context/ToastContext";
 
 // ---------------------------------------------------------------------------
 // BusinessAccessibilityPage
@@ -20,6 +21,7 @@ const inputStyle = {
 
 export default function BusinessAccessibilityPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [values,   setValues]   = useState({});
   const [notApplicable, setNotApplicable] = useState({});
@@ -52,8 +54,9 @@ export default function BusinessAccessibilityPage() {
     return () => { ignore = true; };
   }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
     if (saving) return;
+    const anchor = e.currentTarget;
     setSaving(true);
     setError(null);
 
@@ -70,9 +73,11 @@ export default function BusinessAccessibilityPage() {
     try {
       await updateDashboardBusiness(payload);
       try { await updateProfile({ onboardingStep: "business-photos" }); } catch { /* non-blocking */ }
+      showToast("Changes saved", "success", anchor);
       navigate("/business-setup/photos");
     } catch (err) {
       setError(err.message || "Failed to save accessibility details. Please try again.");
+      showToast("Couldn't save changes", "error", anchor);
     } finally {
       setSaving(false);
     }

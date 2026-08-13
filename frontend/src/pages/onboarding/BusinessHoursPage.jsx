@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "../../context/ToastContext";
 import { getDashboardBusiness, updateDashboardBusiness, updateProfile } from "../../services/api";
 import { WEEKDAYS } from "../../constants/accessibility";
 
@@ -24,6 +25,7 @@ function emptyPeriodRow() { return { open: "", close: "" }; }
 
 export default function BusinessHoursPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [structured, setStructured] = useState({}); // { day: [{open,close}] }
   const [legacy,     setLegacy]     = useState({}); // { day: "original string" }
@@ -134,9 +136,10 @@ export default function BusinessHoursPage() {
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
     if (saving) return;
     if (!validate()) return;
+    const anchor = e.currentTarget;
     setSaving(true);
 
     const hours = { ...legacy };
@@ -150,9 +153,11 @@ export default function BusinessHoursPage() {
     try {
       await updateDashboardBusiness({ hours });
       try { await updateProfile({ onboardingStep: "business-accessibility" }); } catch { /* non-blocking */ }
+      showToast("Hours saved", "success", anchor);
       navigate("/business-setup/accessibility");
     } catch (err) {
       setError(err.message || "Failed to save your hours. Please try again.");
+      showToast("Couldn't save changes", "error", anchor);
     } finally {
       setSaving(false);
     }

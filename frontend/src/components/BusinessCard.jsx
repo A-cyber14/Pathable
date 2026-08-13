@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDistanceMiles } from "../utils/distance";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,6 +107,7 @@ export default function BusinessCard({ business, isSelected = false, onClick, ra
   const trust     = getTrustSignal(business);
   const evidence  = getEvidenceItems(business);
   const compactTags = evidence.filter(e => !e.meta).slice(0, 2);
+  const distanceLabel = formatDistanceMiles(business._distanceMiles);
 
   // Score color/bg
   const scoreColor = accessibility_score == null ? "#9ca3af"
@@ -216,6 +218,11 @@ export default function BusinessCard({ business, isSelected = false, onClick, ra
             }}>
               {category}
             </span>
+            {distanceLabel && (
+              <span style={{ fontSize: "11px", fontWeight: "600", color: "#2563eb" }}>
+                {distanceLabel}
+              </span>
+            )}
             <span style={{ fontSize: "11px", color: "#9ca3af", display: "flex", alignItems: "center", gap: "2px" }}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>

@@ -58,13 +58,30 @@ export default function PaymentSuccessPage() {
       <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "16px", padding: "40px", maxWidth: "420px", width: "100%", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.07)" }}>
         {status !== "slow" ? (
           <>
-            <div style={{ fontSize: "32px", marginBottom: "12px" }}>⏳</div>
+            <div style={{
+              width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#eff6ff",
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"
+                style={{ animation: "spin 0.9s linear infinite" }}>
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+            </div>
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             <h1 style={{ fontSize: "18px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>Confirming your payment…</h1>
             <p style={{ fontSize: "14px", color: "#6b7280", margin: 0, lineHeight: "1.6" }}>This only takes a moment.</p>
           </>
         ) : (
           <>
-            <div style={{ fontSize: "32px", marginBottom: "12px" }}>📨</div>
+            <div style={{
+              width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#fffbeb",
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+              </svg>
+            </div>
             <h1 style={{ fontSize: "18px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>Still confirming</h1>
             <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 20px", lineHeight: "1.6" }}>
               This is taking longer than expected. You can continue to your dashboard — we'll update your plan automatically once payment is confirmed.

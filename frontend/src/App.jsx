@@ -15,6 +15,7 @@ import BusinessSetupPage      from "./pages/BusinessSetupPage";
 import BusinessProfilePage    from "./pages/BusinessProfilePage";
 import AdminPage              from "./pages/AdminPage";
 import PersonalProfilePage    from "./pages/onboarding/PersonalProfilePage";
+import LocationSetupPage      from "./pages/onboarding/LocationSetupPage";
 import PersonalTutorialPage   from "./pages/onboarding/PersonalTutorialPage";
 import NewBusinessInfoPage    from "./pages/onboarding/NewBusinessInfoPage";
 import BusinessInformationPage from "./pages/onboarding/BusinessInformationPage";
@@ -27,6 +28,7 @@ import PaymentCancelPage      from "./pages/onboarding/PaymentCancelPage";
 import BusinessTutorialPage   from "./pages/onboarding/BusinessTutorialPage";
 import ProtectedRoute         from "./components/ProtectedRoute";
 import Navbar                 from "./components/Navbar";
+import TourOverlay            from "./components/TourOverlay";
 import { useAuth }            from "./context/AuthContext";
 import { useIsMobile }        from "./hooks/useIsMobile";
 
@@ -48,6 +50,7 @@ const ONBOARDING_PATH_PREFIXES = ["/onboarding", "/business-setup"];
 // Accessibility → Photos → Review → Payment (paid only) → Tutorial → Dashboard
 const STEP_TO_PATH = {
   profile:                    "/onboarding/profile",
+  location:                   "/onboarding/location",
   tutorial:                   "/onboarding/tutorial",
   "business-search":          "/business-setup",
   "business-new":             "/business-setup/new",
@@ -121,6 +124,7 @@ export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Navbar />
+      <TourOverlay />
       <div style={{
         marginLeft: isMobile ? 0 : "68px",
         height:     isMobile
@@ -138,6 +142,7 @@ export default function App() {
             {/* Onboarding — auth required, but no accountType / role check */}
             <Route path="/account-type"                  element={<ProtectedRoute><AccountTypePage /></ProtectedRoute>} />
             <Route path="/onboarding/profile"             element={<ProtectedRoute><PersonalProfilePage /></ProtectedRoute>} />
+            <Route path="/onboarding/location"            element={<ProtectedRoute><LocationSetupPage /></ProtectedRoute>} />
             <Route path="/onboarding/tutorial"            element={<ProtectedRoute><PersonalTutorialPage /></ProtectedRoute>} />
 
             {/* Business onboarding — find/add business FIRST, then plan */}

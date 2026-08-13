@@ -236,11 +236,12 @@ function ThumbnailStrip({ item, active, onClick }) {
           display:        "flex",
           alignItems:     "center",
           justifyContent: "center",
-          fontSize:       "18px",
           backgroundColor: "#1f2937",
         }}
       >
-        🎬
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#9ca3af" stroke="none">
+          <path d="M8 5v14l11-7z" />
+        </svg>
       </div>
     );
   }
@@ -329,7 +330,9 @@ function CategoryTile({ category, photos, onOpenModal }) {
                   gap:             "6px",
                 }}
               >
-                <span style={{ fontSize: "28px" }}>🎬</span>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="#9ca3af" stroke="none">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
                 <span style={{ fontSize: "11px", color: "#9ca3af", fontWeight: "500" }}>Video</span>
               </div>
             ) : (
@@ -377,9 +380,13 @@ function CategoryTile({ category, photos, onOpenModal }) {
                   fontSize:        "10px",
                   fontWeight:      "600",
                   backdropFilter:  "blur(2px)",
+                  display:         "flex",
+                  alignItems:      "center",
                 }}
               >
-                🎬
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="#fff" stroke="none">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
               </div>
             )}
 
@@ -398,11 +405,14 @@ function CategoryTile({ category, photos, onOpenModal }) {
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "rgba(0,0,0,0)"; }}
             >
               <span
-                style={{ fontSize: "22px", opacity: 0, transition: "opacity 0.15s" }}
+                style={{ opacity: 0, transition: "opacity 0.15s", display: "flex" }}
                 onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; }}
                 onMouseLeave={(e) => { e.currentTarget.style.opacity = 0; }}
               >
-                🔍
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
               </span>
             </div>
           </>
@@ -498,7 +508,6 @@ export default function PhotoGallery({ businessId }) {
     <>
       {/* Section header */}
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
-        <span style={{ fontSize: "16px" }}>🖼</span>
         <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" }}>Photos & Videos</h2>
         <span
           style={{

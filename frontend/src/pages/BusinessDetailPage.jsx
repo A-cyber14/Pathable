@@ -4,6 +4,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase";
 import { getBusiness, addBookmark, removeBookmark, getBookmarks, getProfile, getBusinessPhotos, submitPhoto, submitFeatures, submitReview, getPendingIssueReports } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import CommunityRating from "../components/CommunityRating";
 import StarRating from "../components/StarRating";
 import ReportIssueModal from "../components/ReportIssueModal";
@@ -60,7 +61,11 @@ function VideoThumbnail({ src, onError }) {
   if (failed) {
     return (
       <div style={{ width: "100%", height: "100%", backgroundColor: "#111827", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-        <span style={{ fontSize: "24px" }}>🎬</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 8a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" />
+          <path d="m22 8-5 4 5 4z" />
+          <line x1="2" y1="2" x2="22" y2="22" />
+        </svg>
         <span style={{ fontSize: "10px", color: "#6b7280" }}>Unavailable</span>
       </div>
     );
@@ -446,230 +451,6 @@ function PathableRatingBadge({ business, userPreferences }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Accessibility summary — rules-based insight generator
-// ---------------------------------------------------------------------------
-
-/**
- * Produces 2–4 insight bullets from raw business data and submitted photos.
- * Rules are ordered by user-decision weight: wheelchair first, then entrance,
- * restrooms, then supporting evidence. Each bullet has:
- *   type  — "positive" | "warning" | "unknown" | "evidence"
- *   icon  — emoji used in the UI
- *   text  — one-sentence human-readable insight
- *
- * @param {object}   business
- * @param {object[]} allPhotos
- * @returns {{ type: string, icon: string, text: string }[]}
- */
-function generateAccessibilitySummary(business, allPhotos) {
-  const bullets = [];
-
-  const {
-    wheelchair_accessible: wheelchair,
-    accessible_parking:    parking,
-    accessible_restrooms:  restrooms,
-    elevator,
-    auto_doors:            autoDoors,
-    entrance_width_rating: entranceWidth,
-  } = business;
-
-  // ── 1. Wheelchair access — highest weight, always generates a bullet ──────
-  if (wheelchair === true && parking === true) {
-    bullets.push({
-      type: "positive", icon: "♿",
-      text: "Step-free access and accessible parking are both confirmed.",
-    });
-  } else if (wheelchair === true) {
-    bullets.push({
-      type: "positive", icon: "♿",
-      text: "Wheelchair ramps or step-free access are confirmed.",
-    });
-  } else if (wheelchair === false) {
-    bullets.push({
-      type: "warning", icon: "♿",
-      text: "Wheelchair accessibility has been reported as unavailable at this location.",
-    });
-  } else {
-    bullets.push({
-      type: "unknown", icon: "♿",
-      text: "Wheelchair access hasn't been confirmed yet — community input welcome.",
-    });
-  }
-
-  // ── 2. Accessible parking (only if not bundled into wheelchair combo above) ─
-  if (wheelchair !== true && parking === true && bullets.length < 4) {
-    bullets.push({
-      type: "positive", icon: "🚗",
-      text: "Accessible parking is available near the entrance.",
-    });
-  }
-
-  // ── 3. Entrance width ─────────────────────────────────────────────────────
-  if (entranceWidth === "wide" && bullets.length < 4) {
-    bullets.push({
-      type: "positive", icon: "🚪",
-      text: "The entrance is wide and fully accessible.",
-    });
-  } else if (entranceWidth === "narrow" && bullets.length < 4) {
-    bullets.push({
-      type: "warning", icon: "🚪",
-      text: "The entrance may be narrow — could be challenging for some wheelchair users.",
-    });
-  } else if (entranceWidth === "standard" && bullets.length < 3) {
-    bullets.push({
-      type: "positive", icon: "🚪",
-      text: 'The entrance meets the standard 36\u2033 minimum accessible width.',
-    });
-  }
-
-  // ── 4. Restrooms ──────────────────────────────────────────────────────────
-  if (restrooms === true && bullets.length < 4) {
-    bullets.push({
-      type: "positive", icon: "🚻",
-      text: "Accessible restrooms are confirmed on site.",
-    });
-  } else if (restrooms === false && bullets.length < 4) {
-    bullets.push({
-      type: "warning", icon: "🚻",
-      text: "Accessible restrooms have been reported as unavailable here.",
-    });
-  } else if (restrooms === null && bullets.length < 3) {
-    bullets.push({
-      type: "unknown", icon: "🚻",
-      text: "Restroom accessibility hasn't been confirmed yet.",
-    });
-  }
-
-  // ── 5. Bonus positive features (elevator, auto-doors) — only if room ─────
-  if (elevator === true && bullets.length < 4) {
-    bullets.push({
-      type: "positive", icon: "🛗",
-      text: "An elevator is available, supporting access to multiple floors.",
-    });
-  }
-  if (autoDoors === true && bullets.length < 4) {
-    bullets.push({
-      type: "positive", icon: "🔄",
-      text: "Automatic doors make independent entry easier.",
-    });
-  }
-
-  // ── 6. Photo evidence or data-quality note (always last) ──────────────────
-  if (bullets.length < 4) {
-    const CAT_LABELS = {
-      entrance: "the entrance",
-      bathroom: "the restroom",
-      parking:  "the parking area",
-      interior: "the interior",
-      seating:  "the seating area",
-      other:    "other areas",
-    };
-
-    // Collect unique categories that have at least one photo
-    const photoCats = [...new Set(allPhotos.map((p) => normalizeCategory(p.category)))]
-      .filter((cat) => allPhotos.some((p) => normalizeCategory(p.category) === cat));
-
-    if (photoCats.length > 0) {
-      const labels = photoCats.map((c) => CAT_LABELS[c] || c);
-      const listStr =
-        labels.length === 1 ? labels[0] :
-        labels.length === 2 ? `${labels[0]} and ${labels[1]}` :
-        `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
-      bullets.push({
-        type: "evidence", icon: "📷",
-        text: `Photo evidence is available for ${listStr}.`,
-      });
-    } else {
-      // Only add a data-quality note if the data is genuinely sparse
-      const knownCount = [wheelchair, parking, restrooms, entranceWidth, elevator, autoDoors]
-        .filter((v) => v !== null && v !== undefined).length;
-      if (knownCount <= 1 && bullets.length < 3) {
-        bullets.push({
-          type: "unknown", icon: "📋",
-          text: "Accessibility data here is still very limited. Your contribution can help others.",
-        });
-      }
-    }
-  }
-
-  return bullets.slice(0, 4);
-}
-
-const SUMMARY_TYPE_STYLES = {
-  positive: { textColor: "#15803d", iconBg: "#dcfce7", dotColor: "#16a34a" },
-  warning:  { textColor: "#b91c1c", iconBg: "#fee2e2", dotColor: "#dc2626" },
-  unknown:  { textColor: "#92400e", iconBg: "#fef9c3", dotColor: "#d97706" },
-  evidence: { textColor: "#1d4ed8", iconBg: "#dbeafe", dotColor: "#2563eb" },
-};
-
-function AccessibilitySummaryCard({ business, allPhotos, onContribute }) {
-  const bullets = generateAccessibilitySummary(business, allPhotos);
-  if (bullets.length === 0) return null;
-
-  const hasUnknowns = bullets.some((b) => b.type === "unknown");
-
-  return (
-    <div style={{
-      backgroundColor: "#fff",
-      border: "1px solid #e5e7eb",
-      borderRadius: "14px",
-      padding: "18px 20px",
-      marginBottom: "24px",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-    }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-          <span style={{ fontSize: "15px" }}>⚡</span>
-          <span style={{ fontSize: "11px", fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.6px" }}>
-            At a Glance
-          </span>
-        </div>
-        {hasUnknowns && onContribute && (
-          <button
-            onClick={onContribute}
-            style={{ fontSize: "12px", color: "#b45309", background: "none", border: "1px solid #fde68a", borderRadius: "6px", cursor: "pointer", padding: "3px 10px", fontWeight: "600", backgroundColor: "#fffbeb" }}
-          >
-            + Contribute missing info
-          </button>
-        )}
-      </div>
-
-      {/* Bullet list */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {bullets.map((bullet, i) => {
-          const s = SUMMARY_TYPE_STYLES[bullet.type] || SUMMARY_TYPE_STYLES.unknown;
-          return (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
-              {/* Icon badge */}
-              <span style={{
-                flexShrink: 0,
-                width: "28px", height: "28px",
-                borderRadius: "8px",
-                backgroundColor: s.iconBg,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "14px",
-              }}>
-                {bullet.icon}
-              </span>
-              {/* Text */}
-              <span style={{
-                fontSize: "14px",
-                color: "#374151",
-                lineHeight: "1.55",
-                paddingTop: "5px",
-              }}>
-                {bullet.text}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // Three semantic states for any boolean accessibility attribute:
 //   true  → confirmed present  (green)
 //   false → confirmed absent   (red)
@@ -770,7 +551,7 @@ function QuickSummary({ business, onContribute }) {
       text: business.accessible_restrooms == null ? "Unconfirmed" : business.accessible_restrooms ? "Yes" : "No" },
   ];
   return (
-    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "28px" }}>
+    <div data-tour="accessibility-details" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "28px" }}>
       {items.map(({ icon, label, value, text }) => {
         const unknown  = value == null;
         const positive = value === true;
@@ -889,19 +670,19 @@ function DataConfidenceSection({ confidenceData, onContribute }) {
   // Each stat tile: value = display string, cta = optional actionable label + handler
   const stats = [
     {
-      icon: "🕐", label: "Last Updated",
+      label: "Last Updated",
       value: formatDate(lastUpdatedDate) || "Not available",
       empty: !lastUpdatedDate,
     },
     {
-      icon: "👥", label: "Contributors",
+      label: "Contributors",
       value: totalContributors > 0 ? String(totalContributors) : null,
       emptyText: "None yet",
       cta: totalContributors === 0 ? "Be the first →" : null,
       empty: totalContributors === 0,
     },
     {
-      icon: "📷", label: "Media",
+      label: "Media",
       value: totalMedia > 0
         ? `${photoCount} photo${photoCount !== 1 ? "s" : ""} · ${videoCount} video${videoCount !== 1 ? "s" : ""}`
         : null,
@@ -910,7 +691,7 @@ function DataConfidenceSection({ confidenceData, onContribute }) {
       empty: totalMedia === 0,
     },
     {
-      icon: isVerified ? "✅" : "👤", label: "Source",
+      label: "Source",
       value: isVerified ? "Pathable Verified" : "Community Submitted",
       highlight: isVerified,
       empty: false,
@@ -920,7 +701,6 @@ function DataConfidenceSection({ confidenceData, onContribute }) {
   return (
     <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "14px", padding: "20px", marginBottom: "28px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
-        <span style={{ fontSize: "16px" }}>🛡️</span>
         <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>Data Accuracy</h2>
         <span style={{
           fontSize: "11px", fontWeight: "700",
@@ -933,7 +713,7 @@ function DataConfidenceSection({ confidenceData, onContribute }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-        {stats.map(({ icon, label, value, emptyText, cta, empty, highlight }) => (
+        {stats.map(({ label, value, emptyText, cta, empty, highlight }) => (
           <div
             key={label}
             style={{
@@ -943,7 +723,7 @@ function DataConfidenceSection({ confidenceData, onContribute }) {
             }}
           >
             <div style={{ fontSize: "11px", color: "#9ca3af", fontWeight: "500", marginBottom: "3px", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-              {icon} {label}
+              {label}
             </div>
             <div style={{ fontSize: "13px", fontWeight: "600", color: highlight ? "#15803d" : empty ? "#b45309" : "#111827" }}>
               {value || emptyText}
@@ -978,6 +758,7 @@ const ACPT_VID = ["video/mp4", "video/webm", "video/quicktime"];
 
 function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "review", initialCategory = "entrance" }) {
   const { currentUser } = useAuth();
+  const { showToast }   = useToast();
   const navigate        = useNavigate();
   const [tab, setTab]   = useState(initialTab); // "review" | "photo" | "features"
   const [success, setSuccess] = useState(null); // per-tab success message
@@ -1017,9 +798,10 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
   function genId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
   // ── Handlers ─────────────────────────────────────────────────────────────
-  const handleReviewSubmit = async () => {
+  const handleReviewSubmit = async (e) => {
     if (!currentUser) { navigate("/login"); return; }
     if (reviewForm.rating < 1 || reviewForm.comment.trim().length < 10) return;
+    const anchor = e.currentTarget;
     setError(null); setSubmittingReview(true);
     try {
       await submitReview({
@@ -1035,8 +817,12 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
         handrails_available:          reviewForm.handrails_available,
       });
       setSuccess("Review submitted — thank you!");
+      showToast("Review submitted", "success", anchor);
       onReviewSuccess?.();
-    } catch (err) { setError(err.message || "Failed to submit."); }
+    } catch (err) {
+      setError(err.message || "Failed to submit.");
+      showToast("Couldn't submit review", "error", anchor);
+    }
     finally { setSubmittingReview(false); }
   };
 
@@ -1089,8 +875,9 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
     processFile(result.file, result.hintType);
   };
 
-  const handlePhotoSubmit = async () => {
+  const handlePhotoSubmit = async (e) => {
     if (!file) { setError("Please choose a file."); return; }
+    const anchor = e.currentTarget;
     setError(null); setUploading(true);
     try {
       const isVid = ACPT_VID.includes(file.type);
@@ -1103,12 +890,17 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
       const url = await getDownloadURL(sRef);
       await submitPhoto(businessId, { photoUrl: url, caption, category, mediaType: isVid ? "video" : "image" });
       setSuccess("Photo/Video uploaded!");
+      showToast("Photo uploaded", "success", anchor);
       clearSelectedFile();
-    } catch (err) { setError(err.message || "Upload failed."); }
+    } catch (err) {
+      setError(err.message || "Upload failed.");
+      showToast("Upload failed", "error", anchor);
+    }
     finally { setUploading(false); setUploadPct(0); }
   };
 
-  const handleFeaturesSubmit = async () => {
+  const handleFeaturesSubmit = async (e) => {
+    const anchor = e.currentTarget;
     setError(null); setSubmittingFeatures(true);
     try {
       await submitFeatures(businessId, {
@@ -1116,7 +908,11 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
         doorWidth: featureForm.doorWidth ? parseInt(featureForm.doorWidth, 10) : null,
       });
       setSuccess("Accessibility info submitted — thank you!");
-    } catch (err) { setError(err.message || "Submission failed."); }
+      showToast("Changes saved", "success", anchor);
+    } catch (err) {
+      setError(err.message || "Submission failed.");
+      showToast("Couldn't save changes", "error", anchor);
+    }
     finally { setSubmittingFeatures(false); }
   };
 
@@ -1264,7 +1060,11 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
                       ? <video src={previewUrl} style={{ maxHeight: "120px", maxWidth: "100%", borderRadius: "6px" }} />
                       : <img src={previewUrl} alt="preview" style={{ maxHeight: "120px", maxWidth: "100%", borderRadius: "6px", objectFit: "cover" }} />
                   ) : (
-                    <><div style={{ fontSize: "24px", marginBottom: "6px" }}>{dragOver ? "⬇️" : "📁"}</div>
+                    <><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={dragOver ? "#2563eb" : "#9ca3af"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: "6px" }}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
                     <p style={{ margin: 0, fontSize: "13px", color: dragOver ? "#2563eb" : "#6b7280" }}>{dragOver ? "Drop to upload" : "Click or drag a photo/video here"}</p>
                     {!dragOver && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#9ca3af" }}>Drag from Finder/Desktop for best results. If dragging from Photos doesn&apos;t work, use Choose File.</p>}</>
                   )}
@@ -1322,6 +1122,7 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
 export default function BusinessDetailPage() {
   const { id }   = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [business,         setBusiness]         = useState(null);
   const [loading,          setLoading]          = useState(true);
   const [error,            setError]            = useState(null);
@@ -1392,19 +1193,22 @@ export default function BusinessDetailPage() {
     [allPhotos, brokenPhotoIds],
   );
 
-  const handleBookmark = async () => {
+  const handleBookmark = async (e) => {
     if (bookmarking) return;
+    const anchor = e.currentTarget;
     setBookmarking(true);
     try {
       if (bookmarked) {
         await removeBookmark(business.id);
         setBookmarked(false);
+        showToast("Removed from favorites", "success", anchor);
       } else {
         await addBookmark(business.id);
         setBookmarked(true);
+        showToast("Added to favorites", "success", anchor);
       }
-    } catch (err) {
-      alert(err.message || "Failed to update bookmark. Are you signed in?");
+    } catch {
+      showToast("Couldn't save changes", "error", anchor);
     } finally {
       setBookmarking(false);
     }
@@ -1417,7 +1221,12 @@ export default function BusinessDetailPage() {
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 20px" }}>
 
-        <button onClick={() => navigate("/")} style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "14px", padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
+        <button
+          onClick={() => navigate("/")}
+          onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "14px", padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}
+        >
           ← Back to Map
         </button>
 
@@ -1428,23 +1237,19 @@ export default function BusinessDetailPage() {
           <PathableRatingBadge business={business} userPreferences={userPrefs} />
         </div>
 
-        <p style={{ margin: "0 0 20px", fontSize: "14px", color: "#6b7280" }}>📍 {business.address}</p>
+        <p style={{ margin: "0 0 20px", fontSize: "14px", color: "#6b7280" }}>{business.address}</p>
 
         {/* Pending issue report banner */}
         {hasPendingReport && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "10px", padding: "10px 14px", marginBottom: "16px" }}>
-            <span style={{ fontSize: "15px", flexShrink: 0, marginTop: "1px" }}>⚠️</span>
             <p style={{ margin: 0, fontSize: "13px", color: "#92400e", lineHeight: "1.5" }}>
               An issue has been reported for this location and is awaiting review.
             </p>
           </div>
         )}
 
-        {/* Community rating — near the top so users see social proof immediately */}
-        <CommunityRating key={ratingRefreshKey} businessId={id} />
-
-        {/* At-a-glance accessibility summary */}
-        <AccessibilitySummaryCard business={business} allPhotos={allPhotos} onContribute={() => setShowContribute({})} />
+        {/* Community rating + contribute — near the top so users see social proof immediately */}
+        <CommunityRating key={ratingRefreshKey} businessId={id} onContribute={() => setShowContribute({})} />
 
         {/* Quick summary chips */}
         <QuickSummary business={business} onContribute={() => setShowContribute({})} />
@@ -1452,7 +1257,6 @@ export default function BusinessDetailPage() {
         {/* Photos — all 6 slots always shown; empty ones are clickable to add media */}
         <div style={{ marginBottom: "28px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <span style={{ fontSize: "15px" }}>🖼</span>
             <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>Photos</h2>
             {validPhotoCount > 0 && (
               <span style={{ backgroundColor: "#111827", color: "#fff", borderRadius: "999px", padding: "1px 8px", fontSize: "11px", fontWeight: "600" }}>
@@ -1621,7 +1425,6 @@ export default function BusinessDetailPage() {
             <>
               {/* Section title — matches Photos heading style */}
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                <span style={{ fontSize: "15px" }}>♿</span>
                 <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>Accessibility Details</h2>
               </div>
 
@@ -1654,7 +1457,7 @@ export default function BusinessDetailPage() {
             onClick={() => setShowReportIssue(true)}
             style={{ flex: 2, padding: "13px 8px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: "600", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.15)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
           >
-            <span style={{ fontSize: "15px" }}>⚑</span> Report an Issue
+            Report an Issue
           </button>
           <button
             onClick={handleBookmark}

@@ -71,7 +71,11 @@ export default function DragDropZone({ onFileSelected, disabled }) {
           opacity:         disabled ? 0.6 : 1,
         }}
       >
-        <div style={{ fontSize: "32px", marginBottom: "8px" }}>📁</div>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: "8px" }}>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
         <p style={{ margin: "0 0 4px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>
           Drag & drop a photo or video here
         </p>
@@ -93,7 +97,7 @@ export default function DragDropZone({ onFileSelected, disabled }) {
       />
 
       {error && (
-        <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#dc2626" }}>{error}</p>
+        <p role="alert" style={{ margin: "6px 0 0", fontSize: "13px", color: "#dc2626" }}>{error}</p>
       )}
     </div>
   );

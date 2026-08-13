@@ -93,7 +93,16 @@ export default function BusinessSetupPage() {
 
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "28px" }}>
-          <div style={{ fontSize: "32px", marginBottom: "10px" }}>🏢</div>
+          <div style={{
+            width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#f3f4f6",
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 22V12h6v10" />
+              <path d="M3 9h18" />
+            </svg>
+          </div>
           <h1 style={{ fontSize: "22px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>
             Is your business already on Pathable?
           </h1>

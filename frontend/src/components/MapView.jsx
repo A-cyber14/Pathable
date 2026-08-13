@@ -1,14 +1,5 @@
-import { useEffect, useRef } from "react";
-
-// Wait for Google Maps JS API to be ready
-function waitForGoogle() {
-  return new Promise((resolve) => {
-    if (window.google?.maps) return resolve();
-    const interval = setInterval(() => {
-      if (window.google?.maps) { clearInterval(interval); resolve(); }
-    }, 100);
-  });
-}
+import { useEffect, useRef, useState } from "react";
+import { waitForGoogle } from "../utils/googleMaps";
 
 const PINELLAS_CENTER = { lat: 27.9072, lng: -82.7169 };
 const DEFAULT_ZOOM    = 11;
@@ -58,12 +49,18 @@ function buildIcon(score, isSelected, isTopMatch) {
 //   onSelectBusiness — called when a marker is clicked
 //   mapCenter        — { lat, lng } to pan to (set by location search)
 //   externalPlace    — external (non-Pathable) place to drop a temp yellow marker
+//   userLocation     — { lat, lng } from geolocation; centers the map once
+//                       and shows a subtle marker, but never force-recenters
+//                       again after the user moves the map manually.
 // ---------------------------------------------------------------------------
-export default function MapView({ businesses = [], selectedBusiness, onSelectBusiness, mapCenter, externalPlace }) {
+export default function MapView({ businesses = [], selectedBusiness, onSelectBusiness, mapCenter, externalPlace, userLocation }) {
   const mapRef            = useRef(null);
   const mapInstanceRef    = useRef(null);
   const markersRef        = useRef([]);
   const externalMarkerRef = useRef(null);
+  const userMarkerRef     = useRef(null);
+  const hasCenteredOnUser = useRef(false);
+  const [mapReady, setMapReady] = useState(false);
 
   // 1. Initialize map once
   useEffect(() => {
@@ -77,8 +74,43 @@ export default function MapView({ businesses = [], selectedBusiness, onSelectBus
         mapTypeControl:    false,
         fullscreenControl: false,
       });
+      setMapReady(true);
     });
   }, []);
+
+  // 1b. Center on the user's location once, the first time it's available.
+  // Never runs again after that, so it won't fight a manual map move.
+  useEffect(() => {
+    if (!mapReady || !userLocation || hasCenteredOnUser.current) return;
+    mapInstanceRef.current.panTo(userLocation);
+    mapInstanceRef.current.setZoom(13);
+    hasCenteredOnUser.current = true;
+  }, [mapReady, userLocation]);
+
+  // 1c. Subtle marker for the user's own location
+  useEffect(() => {
+    if (!mapReady) return;
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setMap(null);
+      userMarkerRef.current = null;
+    }
+    if (userLocation) {
+      userMarkerRef.current = new window.google.maps.Marker({
+        position: userLocation,
+        map:      mapInstanceRef.current,
+        title:    "Your location",
+        zIndex:   999,
+        icon: {
+          path:         window.google.maps.SymbolPath.CIRCLE,
+          fillColor:    "#2563eb",
+          fillOpacity:  1,
+          strokeColor:  "#ffffff",
+          strokeWeight: 3,
+          scale:        7,
+        },
+      });
+    }
+  }, [mapReady, userLocation]);
 
   // 2. Pan + zoom when a location search result comes in
   useEffect(() => {

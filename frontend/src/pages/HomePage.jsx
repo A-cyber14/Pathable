@@ -3,19 +3,115 @@ import { useNavigate } from "react-router-dom";
 import MapView      from "../components/MapView";
 import BusinessCard from "../components/BusinessCard";
 import SearchBar    from "../components/SearchBar";
-import { getTopRated } from "../services/api";
+import { getTopRated, getBusinesses } from "../services/api";
 import { useIsMobile } from "../hooks/useIsMobile";
+import { useAuth } from "../context/AuthContext";
+import { withDistances, formatDistanceMiles } from "../utils/distance";
 
 // ---------------------------------------------------------------------------
 // Filter chip config
 // ---------------------------------------------------------------------------
 const FILTER_CHIPS = [
-  { key: "wheelchair", label: "♿ Wheelchair" },
-  { key: "parking",    label: "🅿 Parking" },
-  { key: "restroom",   label: "🚻 Restroom" },
-  { key: "entrance",   label: "🚪 Wide Entrance" },
-  { key: "verified",   label: "✓ Verified" },
+  { key: "wheelchair", label: "Wheelchair" },
+  { key: "parking",    label: "Parking" },
+  { key: "restroom",   label: "Restroom" },
+  { key: "entrance",   label: "Wide entrance" },
+  { key: "verified",   label: "Verified" },
 ];
+
+// ---------------------------------------------------------------------------
+// "Accessible places near you" ranking
+//
+// Distance and Pathable Score are on incompatible scales (miles vs. 0–100),
+// so we can't just average them or sort by one and tie-break on the other —
+// that's what let a 14-mile/53-score business outrank a 2.3-mile/58-score
+// one. Instead every business gets one normalized 0–100 "match score" built
+// from four weighted, independently-normalized components:
+//
+//   distance   50% — linear "closeness": 100 at 0 miles, fading to 0 at
+//                    NEAR_YOU_RADIUS_MI. The single biggest factor, but not
+//                    an absolute veto — see weights below.
+//   score      35% — the existing Pathable Score (0–100), used as-is.
+//   prefs      10% — % of the user's selected accessibility preferences
+//                    this business satisfies (0 if the user set none).
+//   confidence  5% — how much community/verification data backs the score
+//                    (reuses the same contributor/review thresholds as the
+//                    "verified" labels shown elsewhere), so two otherwise-
+//                    tied businesses favor the better-attested one.
+//
+// distance + score = 85% of the total on purpose: they're the two factors
+// the ranking is actually meant to be driven by. Weighting distance higher
+// than score (50 vs 35) keeps nearby places generally on top, but a business
+// close in distance-score but meaningfully better in Pathable Score can
+// still win — e.g. 3mi/40 (68.8) loses to 6mi/90 (81.6). prefs/confidence
+// only matter as tie-breakers among otherwise-similar businesses.
+// ---------------------------------------------------------------------------
+const NEAR_YOU_RADIUS_MI = 25;
+const NEAR_YOU_LIMIT     = 8;
+
+const WEIGHT_DISTANCE   = 0.50;
+const WEIGHT_SCORE      = 0.35;
+const WEIGHT_PREFS      = 0.10;
+const WEIGHT_CONFIDENCE = 0.05;
+
+// Maps a saved feature-preference key to the business field it corresponds
+// to (most keys match directly; a couple of names differ between the
+// personal-preference list and the business schema).
+function prefFieldsMatched(business, featurePreferences) {
+  if (!featurePreferences?.length) return 0;
+  let matched = 0;
+  for (const pref of featurePreferences) {
+    if (pref === "wide_entrances") {
+      if (["standard", "wide"].includes(business.entrance_width_rating)) matched++;
+      continue;
+    }
+    const field = pref === "elevators" ? "elevator" : pref;
+    if (business[field] === true) matched++;
+  }
+  return matched;
+}
+
+// 100 at 0 miles, 0 at (or beyond) the radius — never negative.
+function closenessScore(distanceMiles) {
+  return Math.max(0, 100 * (1 - distanceMiles / NEAR_YOU_RADIUS_MI));
+}
+
+// Reuses the same contributor/review thresholds as the trust labels shown
+// on cards elsewhere in this file, just expressed as a 0–100 number instead
+// of a text label.
+function confidenceScore(business) {
+  const total = (business.contributors_count || 0) + (business.review_count || 0);
+  if (total >= 20) return 100;
+  if (total >= 8)  return 70;
+  if (total >= 3)  return 40;
+  if (total > 0)   return 20;
+  return 0;
+}
+
+function matchScore(business, featurePreferences) {
+  const prefTotal = featurePreferences.length;
+  return (
+    WEIGHT_DISTANCE   * closenessScore(business._distanceMiles) +
+    WEIGHT_SCORE      * (business.accessibility_score ?? 0) +
+    WEIGHT_PREFS      * (prefTotal > 0 ? (prefFieldsMatched(business, featurePreferences) / prefTotal) * 100 : 0) +
+    WEIGHT_CONFIDENCE * confidenceScore(business)
+  );
+}
+
+// Ranks by match score (nearby + well-scored first). Businesses with no
+// known coordinates are excluded entirely rather than risking them jumping
+// above ones with a real, known distance. Falls back to all known-distance
+// businesses if too few fall inside the default radius.
+function rankNearYou(businesses, origin, featurePreferences) {
+  const withDist = withDistances(businesses, origin);
+  const known = withDist.filter((b) => b._distanceMiles != null);
+  const withinRadius = known.filter((b) => b._distanceMiles <= NEAR_YOU_RADIUS_MI);
+  const pool = withinRadius.length >= 3 ? withinRadius : known;
+
+  return [...pool]
+    .sort((a, b) => matchScore(b, featurePreferences) - matchScore(a, featurePreferences))
+    .slice(0, NEAR_YOU_LIMIT);
+}
 
 function applyFilters(businesses, activeFilters) {
   if (activeFilters.size === 0) return businesses;
@@ -59,12 +155,15 @@ function getTrustLabel(business) {
 // ---------------------------------------------------------------------------
 // MobileDrawer — Google Maps-style bottom sheet for mobile
 // ---------------------------------------------------------------------------
-function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBusiness, onSelectBusiness, activeFilters }) {
+function MobileDrawer({
+  isOpen, onToggle, loading, error, businesses, selectedBusiness, onSelectBusiness, activeFilters, heading,
+}) {
 
   // ── Collapsed: small floating pill bottom-left ──────────────────────────
   if (!isOpen) {
     return (
       <div
+        data-tour="near-you"
         onClick={() => onToggle(true)}
         style={{
           position:        "absolute",
@@ -89,7 +188,7 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
           <polyline points="18 15 12 9 6 15" />
         </svg>
         <span style={{ fontSize: "13px", fontWeight: "600", color: "#111827", whiteSpace: "nowrap" }}>
-          Accessible Places Near You
+          {heading}
         </span>
       </div>
     );
@@ -129,7 +228,7 @@ function MobileDrawer({ isOpen, onToggle, loading, error, businesses, selectedBu
         }}
       >
         <span style={{ fontSize: "14px", fontWeight: "700", color: "#111827" }}>
-          Accessible Places Near You
+          {heading}
         </span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
           stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -221,19 +320,24 @@ function SelectedCard({ business, onClose, bottomOffset = "20px" }) {
           <span style={{ fontWeight: "700", fontSize: "15px", color: "#111827", display: "block", lineHeight: "1.3" }}>
             {business.name}
           </span>
-          <span style={{
-            display:         "inline-block",
-            marginTop:       "3px",
-            fontSize:        "10px",
-            fontWeight:      "600",
-            color:           "#6b7280",
-            backgroundColor: "#f3f4f6",
-            borderRadius:    "4px",
-            padding:         "1px 5px",
-            textTransform:   "uppercase",
-            letterSpacing:   "0.2px",
-          }}>
-            {category}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginTop: "3px" }}>
+            <span style={{
+              fontSize:        "10px",
+              fontWeight:      "600",
+              color:           "#6b7280",
+              backgroundColor: "#f3f4f6",
+              borderRadius:    "4px",
+              padding:         "1px 5px",
+              textTransform:   "uppercase",
+              letterSpacing:   "0.2px",
+            }}>
+              {category}
+            </span>
+            {business._distanceMiles != null && (
+              <span style={{ fontSize: "10px", fontWeight: "600", color: "#2563eb" }}>
+                {formatDistanceMiles(business._distanceMiles)}
+              </span>
+            )}
           </span>
         </div>
         {score != null && (
@@ -252,7 +356,7 @@ function SelectedCard({ business, onClose, bottomOffset = "20px" }) {
         )}
       </div>
 
-      <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>📍 {business.address}</p>
+      <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>{business.address}</p>
 
       {tags.length > 0 && (
         <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
@@ -336,7 +440,7 @@ function ExternalPlaceCard({ place, onClose, bottomOffset = "20px" }) {
       </span>
 
       {/* Address */}
-      <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>📍 {place.address}</p>
+      <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>{place.address}</p>
 
       {/* Not-in-Pathable notice */}
       <div style={{
@@ -346,12 +450,8 @@ function ExternalPlaceCard({ place, onClose, bottomOffset = "20px" }) {
         padding:         "8px 10px",
         fontSize:        "12px",
         color:           "#92400e",
-        display:         "flex",
-        alignItems:      "center",
-        gap:             "6px",
       }}>
-        <span>⚠️</span>
-        <span>This place is not yet on Pathable</span>
+        This place is not yet on Pathable
       </div>
 
       {/* Action buttons */}
@@ -399,12 +499,11 @@ function ExternalPlaceCard({ place, onClose, bottomOffset = "20px" }) {
 function EmptyState({ hasFilters }) {
   return (
     <div style={{ textAlign: "center", padding: "32px 12px", color: "#6b7280" }}>
-      <div style={{ fontSize: "36px", marginBottom: "12px" }}>{hasFilters ? "🔍" : "📍"}</div>
       <p style={{ fontWeight: "600", fontSize: "15px", color: "#374151", margin: "0 0 6px" }}>
-        {hasFilters ? "No places match your filters." : "No locations found."}
+        {hasFilters ? "No places match your filters" : "No locations found"}
       </p>
       <p style={{ fontSize: "13px", margin: 0 }}>
-        {hasFilters ? "Try removing a filter to see more results." : "Try searching for a business name above."}
+        {hasFilters ? "Try removing a filter." : "Try searching for a business name above."}
       </p>
     </div>
   );
@@ -455,6 +554,8 @@ function FilterChips({ activeFilters, onToggle, isMobile }) {
 // ---------------------------------------------------------------------------
 export default function HomePage() {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const { userProfile } = useAuth();
 
   const [businesses,            setBusinesses]            = useState([]);
   const [selectedBusiness,      setSelectedBusiness]      = useState(null);
@@ -464,12 +565,32 @@ export default function HomePage() {
   const [activeFilters,         setActiveFilters]         = useState(new Set());
   const [drawerOpen,            setDrawerOpen]            = useState(false);
 
+  const featurePrefsKey = (userProfile?.featurePreferences || []).join(",");
+  const hasLocation = userProfile?.locationLat != null && userProfile?.locationLng != null;
+  const userLocation = hasLocation ? { lat: userProfile.locationLat, lng: userProfile.locationLng } : null;
+
+  // Location comes from onboarding / Settings only — this page never prompts
+  // for it. If the user has one saved, sort nearby businesses by distance
+  // (+ accessibility fit); otherwise fall back to the top-rated list.
   useEffect(() => {
-    getTopRated()
-      .then(setBusinesses)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    setLoading(true);
+    const request = userLocation ? getBusinesses() : getTopRated();
+    request
+      .then((all) => {
+        if (cancelled) return;
+        if (userLocation) {
+          const featurePreferences = featurePrefsKey ? featurePrefsKey.split(",") : [];
+          setBusinesses(rankNearYou(all, userLocation, featurePreferences));
+        } else {
+          setBusinesses(all);
+        }
+      })
+      .catch((err) => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasLocation, userProfile?.locationLat, userProfile?.locationLng, featurePrefsKey]);
 
   const handleSelectBusiness = (business) => {
     setSelectedExternalPlace(null);
@@ -487,6 +608,7 @@ export default function HomePage() {
   };
 
   const filteredBusinesses = applyFilters(businesses, activeFilters);
+  const nearYouHeading = hasLocation ? "Accessible Places Near You" : "Accessible Places";
 
   // On mobile: position card above the nav bar + safe-area, matching the pill logic
   const cardBottom = isMobile
@@ -508,15 +630,20 @@ export default function HomePage() {
         gap:             "8px",
         flexShrink:      0,
       }}>
-        <SearchBar
-          onSelectBusiness={handleSelectBusiness}
-          onSelectExternalPlace={(place) => {
-            setSelectedBusiness(null);
-            setSelectedExternalPlace(place);
-            if (isMobile) setDrawerOpen(false);
-          }}
-        />
-        <FilterChips activeFilters={activeFilters} onToggle={toggleFilter} isMobile={isMobile} />
+        <div data-tour="search">
+          <SearchBar
+            onSelectBusiness={handleSelectBusiness}
+            onSelectExternalPlace={(place) => {
+              setSelectedBusiness(null);
+              setSelectedExternalPlace(place);
+              if (isMobile) setDrawerOpen(false);
+            }}
+            userLocation={userLocation}
+          />
+        </div>
+        <div data-tour="filters">
+          <FilterChips activeFilters={activeFilters} onToggle={toggleFilter} isMobile={isMobile} />
+        </div>
       </div>
 
       {/* Main content */}
@@ -530,6 +657,7 @@ export default function HomePage() {
             onSelectBusiness={handleSelectBusiness}
             mapCenter={null}
             externalPlace={selectedExternalPlace}
+            userLocation={userLocation}
           />
 
           {/* Floating preview cards — hide while mobile drawer is open */}
@@ -560,6 +688,7 @@ export default function HomePage() {
               selectedBusiness={selectedBusiness}
               onSelectBusiness={handleSelectBusiness}
               activeFilters={activeFilters}
+              heading={nearYouHeading}
             />
           )}
         </div>
@@ -574,15 +703,28 @@ export default function HomePage() {
             backgroundColor: "#f9fafb",
           }}>
 
-            {/* Panel header */}
-            <div style={{ marginBottom: "14px" }}>
+            {/* Panel header — this is the tour spotlight target, not the whole
+                (near-viewport-height) panel, so the tooltip has room to render */}
+            <div data-tour="near-you" style={{ marginBottom: "10px" }}>
               <h2 style={{ margin: "0 0 2px", fontSize: "13px", fontWeight: "700", color: "#111827", letterSpacing: "0.1px" }}>
-                Accessible Places Near You
+                {nearYouHeading}
               </h2>
               <p style={{ margin: 0, fontSize: "11px", color: "#9ca3af" }}>
-                {activeFilters.size > 0
-                  ? `Filtered by ${activeFilters.size} need${activeFilters.size > 1 ? "s" : ""} · ranked by Pathable score`
-                  : "Ranked by Pathable score · tap a card to preview"}
+                {activeFilters.size > 0 ? (
+                  `Filtered by ${activeFilters.size} need${activeFilters.size > 1 ? "s" : ""}`
+                ) : hasLocation ? (
+                  "Best matches nearby"
+                ) : (
+                  <>
+                    Top rated ·{" "}
+                    <button
+                      onClick={() => navigate("/profile")}
+                      style={{ background: "none", border: "none", padding: 0, color: "#2563eb", fontWeight: "600", fontSize: "11px", cursor: "pointer" }}
+                    >
+                      Set location
+                    </button>
+                  </>
+                )}
               </p>
             </div>
 

@@ -89,11 +89,18 @@ export default function LoginPage() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", backgroundColor: "#f9fafb", fontFamily: "sans-serif", padding: "24px" }}>
         <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "16px", padding: "40px", maxWidth: "400px", width: "100%", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.07)" }}>
-          <div style={{ fontSize: "36px", marginBottom: "12px" }}>📬</div>
+          <div style={{
+            width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#eff6ff",
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="m22 6-10 7L2 6" />
+            </svg>
+          </div>
           <h1 style={{ fontSize: "20px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>Verify your email</h1>
           <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 24px", lineHeight: "1.6" }}>
-            We sent a verification link to <strong>{email}</strong>. You can continue setting up your account now —
-            verifying just confirms you own this email address.
+            We sent a link to <strong>{email}</strong>. You can continue now — verifying just confirms it's you.
           </p>
           <button
             onClick={() => navigate("/")}

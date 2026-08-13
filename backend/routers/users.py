@@ -111,6 +111,14 @@ class ProfileUpdate(BaseModel):
     # Onboarding progress — see App.jsx's ProfileGate for how these drive resuming.
     onboardingStep:          Optional[str]  = None
     userTutorialCompleted:   Optional[bool] = None
+    # Preferred location for "near you" ranking — never exposed on any public
+    # endpoint, only returned via GET /me/profile to the owning user.
+    # source: "gps" | "zip" | None. lat/lng are set either from geolocation
+    # directly, or geocoded client-side from the ZIP (see zipGeocode.js).
+    locationLat:    Optional[float] = None
+    locationLng:    Optional[float] = None
+    locationZip:    Optional[str]   = None
+    locationSource: Optional[str]   = None
 
 
 class SetupBusinessBody(BaseModel):
@@ -164,6 +172,10 @@ def get_profile(authorization: str = Header(...)):
             "hideIdentity":       False,
             "onboardingStep":     None,
             "userTutorialCompleted": False,
+            "locationLat":        None,
+            "locationLng":        None,
+            "locationZip":        None,
+            "locationSource":     None,
             **activity,
         }
 
@@ -192,6 +204,10 @@ def get_profile(authorization: str = Header(...)):
         "hideIdentity":       data.get("hideIdentity", False),
         "onboardingStep":     data.get("onboardingStep", None),
         "userTutorialCompleted": data.get("userTutorialCompleted", False),
+        "locationLat":        data.get("locationLat", None),
+        "locationLng":        data.get("locationLng", None),
+        "locationZip":        data.get("locationZip", None),
+        "locationSource":     data.get("locationSource", None),
         **activity,
     }
 

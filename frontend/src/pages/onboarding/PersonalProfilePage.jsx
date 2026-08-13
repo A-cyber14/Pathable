@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import { getProfile, updateProfile } from "../../services/api";
 import { DISABILITY_OPTIONS, FEATURE_OPTIONS } from "../../constants/accessibility";
 
@@ -21,6 +22,7 @@ const selectStyle = {
 
 export default function PersonalProfilePage() {
   const { refreshProfile } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const [disabilityType,     setDisabilityType]     = useState("");
@@ -53,15 +55,18 @@ export default function PersonalProfilePage() {
     );
   };
 
-  const handleContinue = async () => {
+  const handleContinue = async (e) => {
+    const anchor = e.currentTarget;
     setSaving(true);
     setError(null);
     try {
-      await updateProfile({ disabilityType, featurePreferences, hideIdentity, onboardingStep: "tutorial" });
+      await updateProfile({ disabilityType, featurePreferences, hideIdentity, onboardingStep: "location" });
       await refreshProfile();
-      navigate("/onboarding/tutorial");
+      showToast("Changes saved", "success", anchor);
+      navigate("/onboarding/location");
     } catch (err) {
       setError(err.message || "Failed to save your profile. Please try again.");
+      showToast("Couldn't save changes", "error", anchor);
       setSaving(false);
     }
   };
@@ -105,7 +110,7 @@ export default function PersonalProfilePage() {
             Feature preferences
           </h2>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {FEATURE_OPTIONS.map(({ value, label, desc }) => (
+            {FEATURE_OPTIONS.map(({ value, label }) => (
               <label
                 key={value}
                 htmlFor={`onb-pref-${value}`}
@@ -118,10 +123,7 @@ export default function PersonalProfilePage() {
                   onChange={() => togglePreference(value)}
                   style={{ width: "18px", height: "18px", cursor: "pointer", flexShrink: 0 }}
                 />
-                <div>
-                  <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{label}</div>
-                  <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>{desc}</div>
-                </div>
+                <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{label}</span>
               </label>
             ))}
           </div>

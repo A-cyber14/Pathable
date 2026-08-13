@@ -97,9 +97,6 @@ export default function AccountTypePage() {
         <h1 style={{ fontSize: "22px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>
           How will you use Pathable?
         </h1>
-        <p style={{ fontSize: "14px", color: "#6b7280", margin: 0, lineHeight: "1.5" }}>
-          Tell us how you'll use the app so we can set up your experience.
-        </p>
         {currentUser?.displayName && (
           <p style={{ fontSize: "13px", color: "#9ca3af", margin: "8px 0 0" }}>
             Signed in as {currentUser.displayName}
@@ -195,7 +192,7 @@ export default function AccountTypePage() {
       </div>
 
       {error && (
-        <p style={{ marginTop: "20px", fontSize: "13px", color: "#dc2626", textAlign: "center" }}>
+        <p role="alert" style={{ marginTop: "20px", fontSize: "13px", color: "#dc2626", textAlign: "center" }}>
           {error}
         </p>
       )}

@@ -13,7 +13,15 @@ export default function PaymentCancelPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", backgroundColor: "#f9fafb", fontFamily: "sans-serif", padding: "32px 24px" }}>
       <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "16px", padding: "40px", maxWidth: "420px", width: "100%", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.07)" }}>
-        <div style={{ fontSize: "32px", marginBottom: "12px" }}>↩️</div>
+        <div style={{
+          width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#f3f4f6",
+          display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+        }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 14 4 9l5-5" />
+            <path d="M4 9h10.5A5.5 5.5 0 0 1 20 14.5v0A5.5 5.5 0 0 1 14.5 20H11" />
+          </svg>
+        </div>
         <h1 style={{ fontSize: "18px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>Checkout canceled</h1>
         <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 20px", lineHeight: "1.6" }}>
           No charge was made. You can try again or pick a different plan.

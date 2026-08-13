@@ -1,9 +1,75 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { getProfile, updateProfile } from "../services/api";
 import { useDisplaySettings } from "../context/DisplaySettingsContext";
 import { DISABILITY_OPTIONS, FEATURE_OPTIONS } from "../constants/accessibility";
+import LocationPicker from "../components/LocationPicker";
+
+function LocationSection({ userProfile, refreshProfile }) {
+  const { showToast } = useToast();
+  const [editing,   setSaving]   = useState(false);
+  const [open,      setOpen]     = useState(false);
+  const [autoStart, setAutoStart] = useState(false);
+
+  const hasLocation = userProfile?.locationLat != null && userProfile?.locationLng != null;
+  const summary = userProfile?.locationZip
+    ? userProfile.locationZip
+    : hasLocation
+      ? "Current location"
+      : "Not set";
+
+  const handleSave = async ({ lat, lng, zip, source, anchorEl }) => {
+    setSaving(true);
+    try {
+      await updateProfile({ locationLat: lat, locationLng: lng, locationZip: zip, locationSource: source });
+      await refreshProfile();
+      showToast("Location saved", "success", anchorEl);
+      setOpen(false);
+    } catch {
+      showToast("Couldn't save changes", "error", anchorEl);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{
+      backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px",
+      padding: "20px", marginBottom: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+    }}>
+      <p style={{ margin: "0 0 12px", fontSize: "12px", fontWeight: "600", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        Location
+      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{summary}</span>
+        {!open && (
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={() => { setAutoStart(true); setOpen(true); }}
+              style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px 12px", color: "#374151", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
+            >
+              Use current location
+            </button>
+            <button
+              onClick={() => { setAutoStart(false); setOpen(true); }}
+              style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px 12px", color: "#374151", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
+            >
+              Change
+            </button>
+          </div>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ marginTop: "14px" }}>
+          <LocationPicker onSave={handleSave} onCancel={() => setOpen(false)} saving={editing} autoStart={autoStart} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ToggleRow({ id, label, description, checked, onChange }) {
   return (
@@ -49,7 +115,8 @@ function ToggleRow({ id, label, description, checked, onChange }) {
 }
 
 export default function ProfilePage() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, userProfile, refreshProfile, logout } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const { largerText, highContrast, toggleLargerText, toggleHighContrast } = useDisplaySettings();
   const [disabilityType,     setDisabilityType]     = useState("");
@@ -78,15 +145,18 @@ export default function ProfilePage() {
     setSaved(false);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e) => {
+    const anchor = e.currentTarget;
     setSaving(true);
     setSaved(false);
     setError(null);
     try {
       await updateProfile({ disabilityType, featurePreferences, hideIdentity });
       setSaved(true);
+      showToast("Changes saved", "success", anchor);
     } catch (err) {
       setError(err.message || "Failed to save profile.");
+      showToast("Couldn't save changes", "error", anchor);
     } finally {
       setSaving(false);
     }
@@ -129,17 +199,19 @@ export default function ProfilePage() {
           <p style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "600", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>Contributions</p>
           <div style={{ display: "flex", gap: "20px" }}>
             {[
-              { icon: "📷", count: 0, label: "Photos"   },
-              { icon: "📍", count: 0, label: "Features" },
-              { icon: "💬", count: 0, label: "Reviews"  },
-            ].map(({ icon, count, label }) => (
+              { count: 0, label: "Photos"   },
+              { count: 0, label: "Features" },
+              { count: 0, label: "Reviews"  },
+            ].map(({ count, label }) => (
               <div key={label}>
-                <div style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>{icon} {count}</div>
+                <div style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>{count}</div>
                 <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "1px" }}>{label}</div>
               </div>
             ))}
           </div>
         </div>
+
+        <LocationSection userProfile={userProfile} refreshProfile={refreshProfile} />
 
         {/* Help */}
         <div style={cardStyle}>
@@ -220,7 +292,7 @@ export default function ProfilePage() {
               </h2>
 
               <div style={{ display: "flex", flexDirection: "column" }}>
-                {FEATURE_OPTIONS.map(({ value, label, desc }) => (
+                {FEATURE_OPTIONS.map(({ value, label }) => (
                   <label
                     key={value}
                     htmlFor={`pref-${value}`}
@@ -240,17 +312,14 @@ export default function ProfilePage() {
                       onChange={() => togglePreference(value)}
                       style={{ width: "18px", height: "18px", cursor: "pointer", flexShrink: 0 }}
                     />
-                    <div>
-                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{label}</div>
-                      <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "1px" }}>{desc}</div>
-                    </div>
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{label}</span>
                   </label>
                 ))}
               </div>
             </div>
 
             {error && (
-              <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
+              <p role="alert" style={{ color: "#dc2626", fontSize: "13px", marginBottom: "12px" }}>{error}</p>
             )}
 
             <button

@@ -1,6 +1,8 @@
 import os
-from fastapi import FastAPI
+import traceback
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from routers import businesses, reviews, users, admin, dashboard, billing
 
@@ -38,6 +40,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Unhandled-error safety net
+# Starlette's default 500 response for an unhandled exception is generated
+# outside CORSMiddleware, so it goes out with no Access-Control-Allow-Origin
+# header. The browser can't read that response and reports it as a CORS
+# failure, masking the real (non-CORS) error underneath. Catching it here
+# turns it into a normal handled response that CORSMiddleware still adds its
+# headers to, so the frontend gets a readable error instead of a fake CORS one.
+# ---------------------------------------------------------------------------
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    traceback.print_exc()
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 app.include_router(businesses.router, prefix="/api/businesses", tags=["businesses"])
 app.include_router(reviews.router,   prefix="/api/reviews",    tags=["reviews"])

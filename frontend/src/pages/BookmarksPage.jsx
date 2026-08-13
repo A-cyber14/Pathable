@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBookmarks, removeBookmark } from "../services/api";
 import { useIsMobile } from "../hooks/useIsMobile";
+import { useToast } from "../context/ToastContext";
 
 function BookmarkCard({ business, onRemove, compact = false }) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [removing, setRemoving] = useState(false);
   const [hovered,  setHovered]  = useState(false);
 
@@ -19,13 +21,15 @@ function BookmarkCard({ business, onRemove, compact = false }) {
       `Entrance: ${business.entrance_width_rating.charAt(0).toUpperCase() + business.entrance_width_rating.slice(1)}`,
   ].filter(Boolean).slice(0, 2);
 
-  const handleRemove = async () => {
+  const handleRemove = async (e) => {
+    const anchor = e.currentTarget;
     setRemoving(true);
     try {
       await removeBookmark(business.id);
       onRemove(business.id);
-    } catch (err) {
-      console.error("Failed to remove bookmark:", err.message);
+      showToast("Removed from favorites", "success", anchor);
+    } catch {
+      showToast("Couldn't remove bookmark", "error", anchor);
       setRemoving(false);
     }
   };
@@ -139,9 +143,8 @@ export default function BookmarksPage() {
         )}
         {!loading && !error && bookmarks.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 0", color: "#9ca3af" }}>
-            <div style={{ fontSize: "40px", marginBottom: "12px" }}>🔖</div>
-            <p style={{ fontSize: "16px", fontWeight: "600", color: "#6b7280" }}>No bookmarks yet</p>
-            <p style={{ fontSize: "14px" }}>Click "Add to Bookmarks" on any location to save it here.</p>
+            <p style={{ fontSize: "16px", fontWeight: "600", color: "#6b7280", margin: "0 0 4px" }}>No bookmarks yet</p>
+            <p style={{ fontSize: "14px", margin: 0 }}>Save places to find them here.</p>
           </div>
         )}
 

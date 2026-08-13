@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { searchUnified } from "../services/api";
+import { hasCoordinates, haversineDistanceMiles, formatDistanceMiles } from "../utils/distance";
 
 // ---------------------------------------------------------------------------
 // SearchBar — dual-section search: Pathable businesses + external (Google) places
@@ -92,7 +93,7 @@ function fetchPlaceCoords(placeId) {
 // ---------------------------------------------------------------------------
 // SearchBar component
 // ---------------------------------------------------------------------------
-export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
+export default function SearchBar({ onSelectBusiness, onSelectExternalPlace, userLocation }) {
   const [query,            setQuery]            = useState("");
   const [results,          setResults]          = useState([]);
   const [dropdownVisible,  setDropdownVisible]  = useState(false);
@@ -236,6 +237,9 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
 
   const ResultRow = ({ result }) => {
     const idx = flatIndex(result);
+    const distanceLabel = userLocation && hasCoordinates(result.latitude, result.longitude)
+      ? formatDistanceMiles(haversineDistanceMiles(userLocation.lat, userLocation.lng, result.latitude, result.longitude))
+      : null;
     return (
       <div
         key={result.place_id || result.id}
@@ -252,9 +256,13 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
           gap:             "10px",
         }}
       >
-        <span style={{ fontSize: "16px", flexShrink: 0, color: result.in_db ? "#2563eb" : "#9ca3af" }}>
-          {result.in_db ? "🏢" : "📍"}
-        </span>
+        <span
+          aria-hidden="true"
+          style={{
+            width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0,
+            backgroundColor: result.in_db ? "#2563eb" : "#d1d5db",
+          }}
+        />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -274,12 +282,12 @@ export default function SearchBar({ onSelectBusiness, onSelectExternalPlace }) {
                   flexShrink:      0,
                 }}
               >
-                ★ Pathable
+                Pathable
               </span>
             )}
           </div>
           <div style={{ fontSize: "12px", color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {result.address}
+            {result.address}{distanceLabel && ` · ${distanceLabel}`}
           </div>
         </div>
 

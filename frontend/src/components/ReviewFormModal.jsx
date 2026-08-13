@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { submitReview } from "../services/api";
 import StarRating from "./StarRating";
 
@@ -19,6 +20,7 @@ const INITIAL_FORM = {
 
 export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
   const { currentUser } = useAuth();
+  const { showToast }   = useToast();
   const navigate        = useNavigate();
 
   const [form,        setForm]        = useState(INITIAL_FORM);
@@ -62,6 +64,7 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!valid) return;
+    const anchor = e.currentTarget;
     setSubmitting(true);
     setError(null);
     try {
@@ -80,8 +83,10 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
       });
       onSuccess?.();
       onClose();
+      showToast("Review submitted", "success", anchor);
     } catch (err) {
       setError(err.message || "Failed to submit review.");
+      showToast("Couldn't submit review", "error", anchor);
     } finally {
       setSubmitting(false);
     }
@@ -195,7 +200,7 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
             </div>
           </div>
 
-          {error && <p style={{ margin: 0, fontSize: "13px", color: "#dc2626" }}>{error}</p>}
+          {error && <p role="alert" style={{ margin: 0, fontSize: "13px", color: "#dc2626" }}>{error}</p>}
         </form>
 
         {/* Footer */}

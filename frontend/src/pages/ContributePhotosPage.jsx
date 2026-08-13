@@ -4,6 +4,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { getBusinesses, submitPhoto } from "../services/api";
 import { PHOTO_CATEGORIES } from "../components/PhotoGallery";
 import { storage } from "../firebase";
+import { useToast } from "../context/ToastContext";
 
 // Maps display category to the folder slug used in Firebase Storage paths
 const CATEGORY_SLUG = {
@@ -40,6 +41,7 @@ function generateId() {
 export default function ContributePhotosPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const { showToast } = useToast();
 
   const [businesses,   setBusinesses]   = useState([]);
   const [businessId,   setBusinessId]   = useState("");
@@ -89,9 +91,10 @@ export default function ContributePhotosPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
     if (!businessId) return setError("Please select a business.");
     if (!file)       return setError("Please choose a photo or video to upload.");
+    const anchor = e.currentTarget;
     setError(null);
     setUploading(true);
     setUploadPct(0);
@@ -120,8 +123,10 @@ export default function ContributePhotosPage() {
 
       setSuccess(true);
       reset();
+      showToast("Photo uploaded", "success", anchor);
     } catch (err) {
       setError(err.message || "Upload failed. Please try again.");
+      showToast("Upload failed", "error", anchor);
     } finally {
       setUploading(false);
       setUploadPct(0);
@@ -249,7 +254,11 @@ export default function ContributePhotosPage() {
                 )
               ) : (
                 <>
-                  <div style={{ fontSize: "28px", marginBottom: "6px" }}>📁</div>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: "6px" }}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
                   <p style={{ margin: 0, fontSize: "13px", color: "#6b7280" }}>
                     Click to choose a photo or video
                   </p>
@@ -268,7 +277,7 @@ export default function ContributePhotosPage() {
             </div>
             {file && (
               <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>
-                {isVideo ? "🎬 " : "🖼 "}{file.name} ({(file.size / 1024).toFixed(0)} KB)
+                {isVideo ? "Video: " : "Image: "}{file.name} ({(file.size / 1024).toFixed(0)} KB)
               </p>
             )}
           </div>
@@ -306,7 +315,7 @@ export default function ContributePhotosPage() {
             </div>
           )}
 
-          {error && <p style={{ margin: 0, fontSize: "13px", color: "#dc2626" }}>{error}</p>}
+          {error && <p role="alert" style={{ margin: 0, fontSize: "13px", color: "#dc2626" }}>{error}</p>}
 
           <button
             onClick={handleSubmit}

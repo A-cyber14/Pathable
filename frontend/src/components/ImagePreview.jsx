@@ -60,7 +60,7 @@ export default function ImagePreview({ file, onRemove }) {
           {file.name}
         </p>
         <p style={{ margin: 0, fontSize: "12px", color: "#9ca3af" }}>
-          {isVideo ? "🎬 Video · " : ""}{sizeMB} MB
+          {isVideo ? "Video · " : ""}{sizeMB} MB
         </p>
       </div>
 

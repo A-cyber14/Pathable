@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import { getDashboardBusiness, updateDashboardBusiness, updateProfile } from "../../services/api";
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,7 @@ const SOCIAL_FIELDS = [
 
 export default function BusinessInformationPage() {
   const { currentUser } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const [phone,       setPhone]       = useState("");
@@ -77,9 +79,10 @@ export default function BusinessInformationPage() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
     if (submitting) return;
     if (!validate()) return;
+    const anchor = e.currentTarget;
     setSubmitting(true);
     setError(null);
 
@@ -94,9 +97,11 @@ export default function BusinessInformationPage() {
         socialLinks: cleanSocial,
       });
       try { await updateProfile({ onboardingStep: "business-hours" }); } catch { /* non-blocking */ }
+      showToast("Changes saved", "success", anchor);
       navigate("/business-setup/hours");
     } catch (err) {
       setError(err.message || "Failed to save your business information. Please try again.");
+      showToast("Couldn't save changes", "error", anchor);
     } finally {
       setSubmitting(false);
     }

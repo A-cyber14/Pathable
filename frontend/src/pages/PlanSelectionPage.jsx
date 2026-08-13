@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { getDashboardBusiness, updateDashboardBusiness, updateProfile } from "../services/api";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { PLANS } from "../constants/plans";
@@ -22,6 +23,7 @@ import { PLANS } from "../constants/plans";
 
 export default function PlanSelectionPage() {
   const { userProfile, refreshProfile } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isManaging = userProfile?.onboardingStep === "complete";
@@ -44,12 +46,14 @@ export default function PlanSelectionPage() {
     return () => { ignore = true; };
   }, []);
 
-  const handleContinue = async () => {
+  const handleContinue = async (e) => {
     if (!selected || saving) return;
+    const anchor = e.currentTarget;
     setSaving(true);
     setError(null);
     try {
       await updateDashboardBusiness({ selectedPlan: selected });
+      showToast("Plan selected", "success", anchor);
       if (isManaging) {
         navigate("/business-profile");
       } else {
@@ -59,6 +63,7 @@ export default function PlanSelectionPage() {
       }
     } catch (err) {
       setError(err.message || "Failed to save your plan. Please try again.");
+      showToast("Couldn't save changes", "error", anchor);
     } finally {
       setSaving(false);
     }

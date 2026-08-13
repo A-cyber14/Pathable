@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import {
   getAdminStats,
   getAdminBusinesses, updateAdminBusiness, deleteAdminBusiness,
@@ -96,6 +97,7 @@ const TD_STYLE = { padding: "10px 12px", borderBottom: "1px solid #f3f4f6", colo
 // ---------------------------------------------------------------------------
 
 function BusinessesTab() {
+  const { showToast } = useToast();
   const [rows,    setRows]    = useState(null);
   const [query,   setQuery]   = useState("");
   const [editing, setEditing] = useState(null); // { id, name, address, website, phone }
@@ -119,7 +121,7 @@ function BusinessesTab() {
     try {
       await deleteAdminBusiness(id);
       setRows((r) => r.filter((b) => b.id !== id));
-    } catch (e) { alert(e.message); }
+    } catch (e) { showToast("Couldn't delete business", "error"); }
   };
 
   const startEdit = (b) =>
@@ -142,7 +144,7 @@ function BusinessesTab() {
 
   return (
     <>
-      {error && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
+      {error && <p role="alert" style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
       <SearchInput value={query} onChange={setQuery} placeholder="Search by name or address…" />
 
       {editing && (
@@ -214,6 +216,7 @@ function BusinessesTab() {
 // ---------------------------------------------------------------------------
 
 function UsersTab() {
+  const { showToast } = useToast();
   const [rows,  setRows]  = useState(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState(null);
@@ -237,7 +240,7 @@ function UsersTab() {
     try {
       await deleteAdminUser(uid);
       setRows((r) => r.filter((u) => u.uid !== uid));
-    } catch (e) { alert(e.message); }
+    } catch (e) { showToast("Couldn't delete user", "error"); }
   };
 
   const handleUnlink = async (uid) => {
@@ -245,7 +248,7 @@ function UsersTab() {
     try {
       await unlinkBusinessUser(uid);
       setRows((r) => r.map((u) => u.uid === uid ? { ...u, accountType: "user", businessId: null } : u));
-    } catch (e) { alert(e.message); }
+    } catch (e) { showToast("Couldn't unlink user", "error"); }
   };
 
   const typeColor = (t) => ({ admin: "#7c3aed", business: "#2563eb", user: "#16a34a" }[t] || "#6b7280");
@@ -254,7 +257,7 @@ function UsersTab() {
 
   return (
     <>
-      {error && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
+      {error && <p role="alert" style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
       <SearchInput value={query} onChange={setQuery} placeholder="Search by name or email…" />
       <div style={{ overflowX: "auto" }}>
         <table style={TABLE_STYLE}>
@@ -313,6 +316,7 @@ function UsersTab() {
 // ---------------------------------------------------------------------------
 
 function ReviewsTab() {
+  const { showToast } = useToast();
   const [rows,  setRows]  = useState(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState(null);
@@ -335,14 +339,14 @@ function ReviewsTab() {
     try {
       await deleteAdminReview(id);
       setRows((r) => r.filter((rev) => rev.id !== id));
-    } catch (e) { alert(e.message); }
+    } catch (e) { showToast("Couldn't delete review", "error"); }
   };
 
   if (!rows) return <p style={{ color: "#6b7280", fontSize: "13px" }}>Loading…</p>;
 
   return (
     <>
-      {error && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
+      {error && <p role="alert" style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
       <SearchInput value={query} onChange={setQuery} placeholder="Search by comment or business ID…" />
       <div style={{ overflowX: "auto" }}>
         <table style={TABLE_STYLE}>
@@ -389,6 +393,7 @@ function ReviewsTab() {
 // ---------------------------------------------------------------------------
 
 function MediaTab() {
+  const { showToast } = useToast();
   const [rows,     setRows]     = useState(null);
   const [query,    setQuery]    = useState("");
   const [error,    setError]    = useState(null);
@@ -410,7 +415,7 @@ function MediaTab() {
     try {
       await deleteAdminMedia(bizId, photoId);
       setRows((r) => r.filter((p) => p.id !== photoId));
-    } catch (e) { alert(e.message); }
+    } catch (e) { showToast("Couldn't delete photo", "error"); }
   };
 
   const handleCleanup = async () => {
@@ -418,10 +423,10 @@ function MediaTab() {
     setCleaning(true);
     try {
       const result = await cleanupOrphanedPhotos();
-      alert(`Cleanup complete. Orphaned photos removed: ${result.orphaned_photos_removed}. Businesses updated: ${result.businesses_updated}.`);
+      showToast("Cleanup complete");
       load();
     } catch (e) {
-      alert(`Cleanup failed: ${e.message}`);
+      showToast("Cleanup failed", "error");
     } finally {
       setCleaning(false);
     }
@@ -431,7 +436,7 @@ function MediaTab() {
 
   return (
     <>
-      {error && <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
+      {error && <p role="alert" style={{ color: "#dc2626", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
         <SearchInput value={query} onChange={setQuery} placeholder="Search by business ID…" />
         <button
@@ -550,7 +555,7 @@ export default function AdminPage() {
       {/* Stats row */}
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "28px" }}>
         {statsError ? (
-          <p style={{ color: "#dc2626", fontSize: "13px" }}>{statsError}</p>
+          <p role="alert" style={{ color: "#dc2626", fontSize: "13px" }}>{statsError}</p>
         ) : (
           <>
             <StatCard label="Users"      value={stats?.users}      color="#2563eb" />

@@ -1,12 +1,31 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import StarRating from "./StarRating";
 
-export default function ReviewModal({ reviews, onClose, onWriteReview }) {
+// ---------------------------------------------------------------------------
+// ReviewModal — the one, single reviews experience: rating breakdown at the
+// top, individual reviews directly below, Leave a Review at the bottom.
+// No separate breakdown popup, no nested modal.
+// ---------------------------------------------------------------------------
+export default function ReviewModal({ summary, reviews, loading, onClose, onWriteReview }) {
+  const panelRef = useRef(null);
+  const previouslyFocused = useRef(null);
+
+  useEffect(() => {
+    previouslyFocused.current = document.activeElement;
+    panelRef.current?.focus();
+    return () => { previouslyFocused.current?.focus?.(); };
+  }, []);
+
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  const avg      = summary?.average_rating ?? 0;
+  const count    = summary?.review_count   ?? 0;
+  const breakdown = summary?.breakdown ?? { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  const maxBar    = Math.max(...Object.values(breakdown), 1);
 
   return (
     <div
@@ -23,17 +42,23 @@ export default function ReviewModal({ reviews, onClose, onWriteReview }) {
       }}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label="All reviews"
         onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: "#fff",
           borderRadius:    "16px",
           width:           "100%",
           maxWidth:        "560px",
-          maxHeight:       "80vh",
+          maxHeight:       "85vh",
           display:         "flex",
           flexDirection:   "column",
           boxShadow:       "0 20px 60px rgba(0,0,0,0.2)",
           overflow:        "hidden",
+          outline:         "none",
         }}
       >
         {/* Header */}
@@ -50,15 +75,50 @@ export default function ReviewModal({ reviews, onClose, onWriteReview }) {
           </h2>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#6b7280", lineHeight: 1, padding: "2px" }}
           >✕</button>
         </div>
 
-        {/* Review list */}
-        <div style={{ overflowY: "auto", flex: 1, padding: "16px 24px" }}>
-          {reviews.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 0" }}>
-              <div style={{ fontSize: "32px", marginBottom: "12px" }}>🗒️</div>
+        {/* Scrollable body: rating breakdown, then reviews */}
+        <div style={{ overflowY: "auto", flex: 1, padding: "20px 24px" }}>
+
+          {/* Rating breakdown */}
+          <div style={{ display: "flex", gap: "20px", marginBottom: "20px", paddingBottom: "20px", borderBottom: "1px solid #f3f4f6" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minWidth: "80px" }}>
+              <span style={{ fontSize: "38px", fontWeight: "800", color: "#111827", lineHeight: 1 }}>
+                {count > 0 ? avg.toFixed(1) : "—"}
+              </span>
+              <span style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>Out of 5</span>
+              <div style={{ marginTop: "6px" }}>
+                <StarRating value={avg} size={13} />
+              </div>
+            </div>
+
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "5px", justifyContent: "center" }}>
+              {[5, 4, 3, 2, 1].map((star) => {
+                const n   = breakdown[star] ?? 0;
+                const pct = Math.round((n / maxBar) * 100);
+                return (
+                  <div key={star} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "12px", color: "#374151", width: "38px", whiteSpace: "nowrap" }}>
+                      {star} Star
+                    </span>
+                    <div style={{ flex: 1, height: "8px", backgroundColor: "#f3f4f6", borderRadius: "999px", overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", backgroundColor: "#22c55e", borderRadius: "999px", transition: "width 0.3s" }} />
+                    </div>
+                    <span style={{ fontSize: "12px", color: "#6b7280", width: "24px", textAlign: "right" }}>{n}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Reviews */}
+          {loading ? (
+            <p style={{ fontSize: "13px", color: "#9ca3af", textAlign: "center", padding: "24px 0" }}>Loading reviews…</p>
+          ) : reviews.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px 0" }}>
               <p style={{ margin: "0 0 4px", fontWeight: "600", fontSize: "15px", color: "#374151" }}>
                 No reviews yet
               </p>

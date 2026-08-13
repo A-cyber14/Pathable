@@ -71,7 +71,12 @@ def get_all_businesses():
         data = doc.to_dict()
         data["id"] = doc.id
         data = _enrich_score(data)
-        results.append(BusinessSummary.model_validate(data))
+        try:
+            results.append(BusinessSummary.model_validate(data))
+        except Exception:
+            # Skip documents missing required fields rather than failing the
+            # whole list — same defensive pattern as get_top_rated below.
+            continue
     return results
 
 
@@ -116,7 +121,10 @@ def search_businesses(q: str = Query(..., description="Search query")):
         data["id"] = doc.id
         if q_lower in data.get("name", "").lower():
             data = _enrich_score(data)
-            results.append(BusinessSummary.model_validate(data))
+            try:
+                results.append(BusinessSummary.model_validate(data))
+            except Exception:
+                continue
     return results
 
 

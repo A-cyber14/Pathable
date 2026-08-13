@@ -279,7 +279,7 @@ export default function UnverifiedBusinessPage() {
         </div>
 
         {/* Address + coordinates */}
-        <p style={{ margin: "0 0 6px", fontSize: "14px", color: "#6b7280" }}>📍 {place.address}</p>
+        <p style={{ margin: "0 0 6px", fontSize: "14px", color: "#6b7280" }}>{place.address}</p>
         {place.latitude && place.longitude && (
           <p style={{ margin: "0 0 24px", fontSize: "12px", color: "#9ca3af" }}>
             {place.latitude.toFixed(5)}, {place.longitude.toFixed(5)}
@@ -289,7 +289,6 @@ export default function UnverifiedBusinessPage() {
         {/* Photo grid — all empty slots */}
         <div style={{ marginBottom: "28px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-            <span style={{ fontSize: "16px" }}>🖼</span>
             <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#111827" }}>Photos</h2>
             <span style={{ backgroundColor: "#e5e7eb", color: "#6b7280", borderRadius: "999px", padding: "1px 8px", fontSize: "12px", fontWeight: "600" }}>
               0

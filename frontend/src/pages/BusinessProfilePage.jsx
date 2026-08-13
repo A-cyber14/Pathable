@@ -371,10 +371,19 @@ export default function BusinessProfilePage() {
     return (
       <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: "32px 24px", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ maxWidth: "420px", textAlign: "center" }}>
-          <div style={{ fontSize: "32px", marginBottom: "12px" }}>🏢</div>
+          <div style={{
+            width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#f3f4f6",
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 22V12h6v10" />
+              <path d="M3 9h18" />
+            </svg>
+          </div>
           <h1 style={{ fontSize: "18px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>Set up your business</h1>
           <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 20px", lineHeight: "1.6" }}>
-            Your account doesn't have a business linked yet. Search for your existing Pathable listing or add a new one to continue.
+            Search for your listing or add a new one to continue.
           </p>
           <button
             onClick={() => navigate("/business-setup/plan")}
@@ -424,7 +433,7 @@ export default function BusinessProfilePage() {
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* Profile Completion + Plan                                    */}
         {/* ═══════════════════════════════════════════════════════════ */}
-        <div style={card}>
+        <div data-tour="biz-dashboard" style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
             <p style={{ ...sectionLabel, margin: 0 }}>Profile Completion</p>
             <span style={{ fontSize: "13px", fontWeight: "700", color: "#111827" }}>{business.profileCompletion ?? 0}%</span>
@@ -466,7 +475,7 @@ export default function BusinessProfilePage() {
               <button onClick={() => navigate("/business-setup/tutorial")} style={{ background: "none", border: "none", color: "#6b7280", fontSize: "12px", fontWeight: "600", cursor: "pointer", padding: 0 }}>
                 Help
               </button>
-              <button onClick={() => navigate("/business-setup/plan")} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: "600", cursor: "pointer", padding: 0 }}>
+              <button data-tour="biz-plan" onClick={() => navigate("/business-setup/plan")} style={{ background: "none", border: "none", color: "#2563eb", fontSize: "12px", fontWeight: "600", cursor: "pointer", padding: 0 }}>
                 Manage plan
               </button>
               {business.subscriptionStatus === "past_due" && (
@@ -495,11 +504,11 @@ export default function BusinessProfilePage() {
         {/* ── Quick stats ── */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           {[
-            { icon: "💬", value: business.review_count ?? 0,       label: "Reviews"           },
-            { icon: "📷", value: photos.length,                     label: "Photos"            },
-            { icon: "👥", value: business.contributors_count ?? 0, label: "Contributors"      },
-            { icon: "⚠️", value: awaitingResponse,                   label: "Awaiting Response" },
-          ].map(({ icon, value, label }) => (
+            { value: business.review_count ?? 0,       label: "Reviews"           },
+            { value: photos.length,                     label: "Photos"            },
+            { value: business.contributors_count ?? 0, label: "Contributors"      },
+            { value: awaitingResponse,                   label: "Awaiting Response" },
+          ].map(({ value, label }) => (
             <div
               key={label}
               style={{
@@ -512,7 +521,7 @@ export default function BusinessProfilePage() {
                 boxShadow:       "0 1px 3px rgba(0,0,0,0.04)",
               }}
             >
-              <div style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>{icon} {value}</div>
+              <div style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>{value}</div>
               <div style={{ fontSize: "10px", color: "#9ca3af", marginTop: "2px", lineHeight: "1.3" }}>{label}</div>
             </div>
           ))}
@@ -521,7 +530,7 @@ export default function BusinessProfilePage() {
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* 1. Business Overview                                        */}
         {/* ═══════════════════════════════════════════════════════════ */}
-        <div style={card}>
+        <div data-tour="biz-overview" style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
             <p style={sectionLabel}>Business Overview</p>
             {!editing && (
@@ -597,7 +606,7 @@ export default function BusinessProfilePage() {
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* 2. Accessibility Details                                    */}
         {/* ═══════════════════════════════════════════════════════════ */}
-        <div style={card}>
+        <div data-tour="biz-accessibility" style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
             <p style={{ ...sectionLabel, margin: 0 }}>Accessibility Details</p>
             <button
@@ -625,14 +634,13 @@ export default function BusinessProfilePage() {
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* 3. Media                                                    */}
         {/* ═══════════════════════════════════════════════════════════ */}
-        <div style={card}>
+        <div data-tour="biz-photos" style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
             <p style={{ ...sectionLabel, margin: 0 }}>Photos & Videos</p>
             <span style={{ fontSize: "12px", color: "#9ca3af" }}>{photos.length} uploaded</span>
           </div>
           {photos.length === 0 ? (
             <div style={{ textAlign: "center", padding: "20px 0", color: "#9ca3af" }}>
-              <div style={{ fontSize: "24px", marginBottom: "6px" }}>📷</div>
               <p style={{ fontSize: "13px", margin: 0 }}>No media uploaded yet.</p>
             </div>
           ) : (
@@ -656,7 +664,7 @@ export default function BusinessProfilePage() {
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* 4. Reviews                                                  */}
         {/* ═══════════════════════════════════════════════════════════ */}
-        <div style={card}>
+        <div data-tour="biz-reviews" style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
             <p style={{ ...sectionLabel, margin: 0 }}>Reviews</p>
             {awaitingResponse > 0 && (
@@ -667,7 +675,6 @@ export default function BusinessProfilePage() {
           </div>
           {reviews.length === 0 ? (
             <div style={{ textAlign: "center", padding: "20px 0", color: "#9ca3af" }}>
-              <div style={{ fontSize: "24px", marginBottom: "6px" }}>💬</div>
               <p style={{ fontSize: "13px", margin: 0 }}>No reviews yet.</p>
             </div>
           ) : (
@@ -680,7 +687,7 @@ export default function BusinessProfilePage() {
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* 5. Insights                                                 */}
         {/* ═══════════════════════════════════════════════════════════ */}
-        <div style={card}>
+        <div data-tour="biz-analytics" style={card}>
           <p style={{ ...sectionLabel, marginBottom: "4px" }}>Accessibility Insights</p>
           <p style={{ margin: "0 0 18px", fontSize: "13px", color: "#6b7280" }}>
             What accessibility features matter most to people using Pathable.

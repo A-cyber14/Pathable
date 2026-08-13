@@ -13,13 +13,10 @@ export default function ContributePage() {
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: "32px 24px" }}>
       <div style={{ maxWidth: "860px", margin: "0 auto" }}>
 
-        {/* Header — matches Image 3 */}
-        <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#111827", margin: "0 0 6px" }}>
-          Contribute Information
+        {/* Header */}
+        <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#111827", margin: "0 0 28px" }}>
+          Contribute
         </h1>
-        <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 28px" }}>
-          Help others by sharing accessibility information about locations
-        </p>
 
         {/* Two action cards — side by side (Image 3) */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "28px" }}>
@@ -38,7 +35,6 @@ export default function ContributePage() {
               gap:             "16px",
             }}
           >
-            {/* Blue camera icon circle (Image 3) */}
             <div
               style={{
                 width:           "72px",
@@ -48,17 +44,19 @@ export default function ContributePage() {
                 display:         "flex",
                 alignItems:      "center",
                 justifyContent:  "center",
-                fontSize:        "30px",
               }}
             >
-              📷
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
             </div>
 
             <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#111827" }}>
               Add Photos
             </h2>
             <p style={{ margin: 0, fontSize: "14px", color: "#6b7280", lineHeight: "1.5" }}>
-              Upload photos of entrances, parking, ramps, and other accessibility features
+              Help visitors know what to expect.
             </p>
             <button
               onClick={() => navigate("/contribute/photos")}
@@ -93,7 +91,6 @@ export default function ContributePage() {
               gap:             "16px",
             }}
           >
-            {/* Green pin icon circle (Image 3) */}
             <div
               style={{
                 width:           "72px",
@@ -103,17 +100,20 @@ export default function ContributePage() {
                 display:         "flex",
                 alignItems:      "center",
                 justifyContent:  "center",
-                fontSize:        "30px",
               }}
             >
-              📍
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                <path d="m9 14 2 2 4-4"/>
+              </svg>
             </div>
 
             <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#111827" }}>
               Add Features
             </h2>
             <p style={{ margin: 0, fontSize: "14px", color: "#6b7280", lineHeight: "1.5" }}>
-              Share information about parking, door widths, restrooms, and building features
+              Share parking, doors, and restroom details.
             </p>
             <button
               onClick={() => navigate("/contribute/features")}
@@ -133,28 +133,6 @@ export default function ContributePage() {
               Get Started
             </button>
           </div>
-        </div>
-
-        {/* Why contribute? section — light blue box (Image 3) */}
-        <div
-          style={{
-            backgroundColor: "#eff6ff",
-            border:          "1px solid #bfdbfe",
-            borderRadius:    "12px",
-            padding:         "20px 24px",
-          }}
-        >
-          <h3 style={{ margin: "0 0 12px", fontSize: "15px", fontWeight: "700", color: "#1e40af" }}>
-            Why contribute?
-          </h3>
-          <ul style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "6px" }}>
-            <li style={{ fontSize: "14px", color: "#1e3a8a" }}>
-              Help people with disabilities make informed decisions about accessibility.
-            </li>
-            <li style={{ fontSize: "14px", color: "#1e3a8a" }}>
-              All contributions are reviewed before going live.
-            </li>
-          </ul>
         </div>
 
       </div>

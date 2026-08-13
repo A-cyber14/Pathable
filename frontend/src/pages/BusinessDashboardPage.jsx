@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import {
   getDashboardBusiness,
   updateDashboardBusiness,
@@ -302,7 +303,7 @@ function ReviewCard({ review, onRespond }) {
                 }}
               />
               {error && (
-                <p style={{ color: "#dc2626", fontSize: "12px", margin: "4px 0 8px" }}>{error}</p>
+                <p role="alert" style={{ color: "#dc2626", fontSize: "12px", margin: "4px 0 8px" }}>{error}</p>
               )}
               <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
                 <button
@@ -352,6 +353,7 @@ function ReviewCard({ review, onRespond }) {
 
 export default function BusinessDashboardPage() {
   const { currentUser } = useAuth();
+  const { showToast } = useToast();
 
   const [activeTab,  setActiveTab]  = useState("Profile");
   const [business,   setBusiness]   = useState(null);
@@ -408,7 +410,8 @@ export default function BusinessDashboardPage() {
     load();
   }, [currentUser]);
 
-  const handleSave = async () => {
+  const handleSave = async (e) => {
+    const anchor = e.currentTarget;
     setSaving(true);
     setSaved(false);
     setSaveError(null);
@@ -426,8 +429,10 @@ export default function BusinessDashboardPage() {
       }));
       setSaved(true);
       setEditing(false);
+      showToast("Changes saved", "success", anchor);
     } catch (err) {
       setSaveError(err.message || "Failed to save changes.");
+      showToast("Couldn't save changes", "error", anchor);
     } finally {
       setSaving(false);
     }
@@ -495,7 +500,7 @@ export default function BusinessDashboardPage() {
     return (
       <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: "32px 24px" }}>
         <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-          <p style={{ color: "#dc2626", fontSize: "14px" }}>{error}</p>
+          <p role="alert" style={{ color: "#dc2626", fontSize: "14px" }}>{error}</p>
         </div>
       </div>
     );
@@ -636,7 +641,7 @@ export default function BusinessDashboardPage() {
                   </div>
 
                   {saveError && (
-                    <p style={{ color: "#dc2626", fontSize: "13px", margin: 0 }}>{saveError}</p>
+                    <p role="alert" style={{ color: "#dc2626", fontSize: "13px", margin: 0 }}>{saveError}</p>
                   )}
 
                   <div style={{ display: "flex", gap: "8px" }}>

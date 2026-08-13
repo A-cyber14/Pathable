@@ -5,6 +5,7 @@ import { storage } from "../../firebase";
 import { getDashboardBusiness, submitPhoto, updateProfile } from "../../services/api";
 import { PHOTO_CATEGORIES } from "../../components/PhotoGallery";
 import DragDropZone from "../../components/DragDropZone";
+import { useToast } from "../../context/ToastContext";
 
 // ---------------------------------------------------------------------------
 // BusinessPhotosPage
@@ -20,6 +21,7 @@ function generateId() {
 
 export default function BusinessPhotosPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [businessId, setBusinessId] = useState(null);
   const [category,   setCategory]   = useState("entrance");
@@ -38,8 +40,9 @@ export default function BusinessPhotosPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleUpload = async () => {
+  const handleUpload = async (e) => {
     if (!file || !businessId || uploading) return;
+    const anchor = e.currentTarget;
     setUploading(true);
     setError(null);
     setUploadPct(0);
@@ -66,8 +69,10 @@ export default function BusinessPhotosPage() {
       setUploadedCount((n) => n + 1);
       setFile(null);
       setPreviewUrl(null);
+      showToast("Photo uploaded", "success", anchor);
     } catch (err) {
       setError(err.message || "Upload failed. Please try again.");
+      showToast("Upload failed", "error", anchor);
     } finally {
       setUploading(false);
       setUploadPct(0);
