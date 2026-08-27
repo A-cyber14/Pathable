@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { isValidZip, geocodeZip } from "../utils/zipGeocode";
+import ZipConfirmModal from "./ZipConfirmModal";
 
 const primaryBtn = {
   padding: "13px", backgroundColor: "#111827", color: "#fff", border: "none",
@@ -36,6 +37,7 @@ export default function LocationPicker({ onSave, onSkip, onCancel, saving = fals
   const [zip, setZip] = useState("");
   const [zipError, setZipError] = useState(null);
   const [zipLoading, setZipLoading] = useState(false);
+  const [pendingZip, setPendingZip] = useState(null); // { zip, lat, lng, city, state, anchorEl }
 
   // useGeolocation() caches its "granted" status (and coordinates) in
   // sessionStorage, so a fresh mount of this component can already report
@@ -81,7 +83,7 @@ export default function LocationPicker({ onSave, onSkip, onCancel, saving = fals
     setZipLoading(true);
     try {
       const coords = await geocodeZip(zip);
-      onSave({ lat: coords.lat, lng: coords.lng, zip: zip.trim(), source: "zip", anchorEl });
+      setPendingZip({ zip: zip.trim(), lat: coords.lat, lng: coords.lng, city: coords.city, state: coords.state, anchorEl });
     } catch (err) {
       setZipError(err.message || "Couldn't find that ZIP code.");
     } finally {
@@ -89,37 +91,56 @@ export default function LocationPicker({ onSave, onSkip, onCancel, saving = fals
     }
   };
 
+  const confirmZip = () => {
+    if (!pendingZip) return;
+    const { zip: confirmedZip, lat, lng, anchorEl } = pendingZip;
+    setPendingZip(null);
+    onSave({ lat, lng, zip: confirmedZip, source: "zip", anchorEl });
+  };
+
   const busy = saving || geoStatus === "loading" || zipLoading;
 
   if (mode === "zip") {
     return (
-      <form onSubmit={handleZipSubmit} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        <label htmlFor="loc-zip" style={{ fontSize: "13px", fontWeight: "600", color: "#374151" }}>
-          ZIP code
-        </label>
-        <input
-          id="loc-zip"
-          type="text"
-          inputMode="numeric"
-          pattern="\d{5}"
-          maxLength={5}
-          value={zip}
-          onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZipError(null); }}
-          placeholder="34685"
-          autoFocus
-          style={{
-            padding: "12px 14px", fontSize: "16px", border: `1.5px solid ${zipError ? "#fca5a5" : "#d1d5db"}`,
-            borderRadius: "10px", outline: "none", boxSizing: "border-box", color: "#111827",
-          }}
-        />
-        {zipError && <p role="alert" style={{ margin: 0, fontSize: "13px", color: "#dc2626" }}>{zipError}</p>}
-        <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.7 : 1 }}>
-          {zipLoading ? "Looking up…" : "Save ZIP code"}
-        </button>
-        <button type="button" onClick={() => setMode("choose")} style={linkBtn}>
-          Back
-        </button>
-      </form>
+      <>
+        <form onSubmit={handleZipSubmit} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <label htmlFor="loc-zip" style={{ fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+            ZIP code
+          </label>
+          <input
+            id="loc-zip"
+            type="text"
+            inputMode="numeric"
+            pattern="\d{5}"
+            maxLength={5}
+            value={zip}
+            onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZipError(null); }}
+            placeholder="34685"
+            autoFocus
+            style={{
+              padding: "12px 14px", fontSize: "16px", border: `1.5px solid ${zipError ? "#fca5a5" : "#d1d5db"}`,
+              borderRadius: "10px", outline: "none", boxSizing: "border-box", color: "#111827",
+            }}
+          />
+          {zipError && <p role="alert" style={{ margin: 0, fontSize: "13px", color: "#dc2626" }}>{zipError}</p>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.7 : 1 }}>
+            {zipLoading ? "Looking up…" : "Save ZIP code"}
+          </button>
+          <button type="button" onClick={() => setMode("choose")} style={linkBtn}>
+            Back
+          </button>
+        </form>
+
+        {pendingZip && (
+          <ZipConfirmModal
+            zip={pendingZip.zip}
+            city={pendingZip.city}
+            state={pendingZip.state}
+            onConfirm={confirmZip}
+            onCancel={() => setPendingZip(null)}
+          />
+        )}
+      </>
     );
   }
 
