@@ -89,7 +89,19 @@ export default function BusinessSetupPage() {
         padding:        "48px 20px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: "520px" }}>
+      <div style={{ width: "100%", maxWidth: "520px", position: "relative" }}>
+
+        <button
+          onClick={() => navigate("/account-type")}
+          aria-label="Close"
+          style={{
+            position: "absolute", top: 0, right: 0,
+            background: "none", border: "none", fontSize: "22px",
+            cursor: "pointer", color: "#6b7280", lineHeight: 1, padding: "4px",
+          }}
+        >
+          ✕
+        </button>
 
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "28px" }}>
