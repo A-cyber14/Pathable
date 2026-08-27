@@ -4,19 +4,27 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { submitReview } from "../services/api";
 import StarRating from "./StarRating";
+import TriToggle from "./TriToggle";
 
+// Accessibility fields default to null ("Unsure"), never false — a reviewer
+// who didn't check something must never have that read as a confirmed "No".
+// See services/accessibility.py on the backend for why this distinction
+// matters: it's what keeps one review from silently overwriting real data.
 const INITIAL_FORM = {
   rating:                       0,
   comment:                      "",
-  wheelchair_accessible:        false,
-  accessible_parking:           false,
-  accessible_restrooms:         false,
-  elevator:                     false,
-  auto_doors:                   false,
-  entrance_width_rating:        "standard",
-  wheelchair_accessible_tables: false,
-  handrails_available:          false,
+  wheelchair_accessible:        null,
+  accessible_parking:           null,
+  accessible_restrooms:         null,
+  elevator:                     null,
+  auto_doors:                   null,
+  entrance_width_rating:        null,
+  wheelchair_accessible_tables: null,
+  handrails_available:          null,
 };
+
+const MIN_COMMENT_LENGTH = 10;
+const COMMENT_HINT_ID = "review-comment-hint";
 
 export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
   const { currentUser } = useAuth();
@@ -29,7 +37,7 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
   const [error,       setError]       = useState(null);
 
   const commentTrimmed = form.comment.trim();
-  const valid = form.rating >= 1 && commentTrimmed.length >= 10;
+  const valid = form.rating >= 1 && commentTrimmed.length >= MIN_COMMENT_LENGTH;
 
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
@@ -63,7 +71,7 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!valid) return;
+    if (!valid || submitting) return;
     const anchor = e.currentTarget;
     setSubmitting(true);
     setError(null);
@@ -135,64 +143,49 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
 
           {/* Comment */}
           <div>
-            <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+            <label htmlFor="review-comment" style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>
               Your Experience <span style={{ color: "#dc2626" }}>*</span>
-              <span style={{ fontWeight: "400", color: "#9ca3af", textTransform: "none", marginLeft: "6px" }}>(min. 10 characters)</span>
+              <span style={{ fontWeight: "400", color: "#9ca3af", textTransform: "none", marginLeft: "6px" }}>(min. {MIN_COMMENT_LENGTH} characters)</span>
             </label>
             <textarea
+              id="review-comment"
               value={form.comment}
               onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}
               placeholder="Describe the accessibility at this location…"
               rows={4}
-              style={{ width: "100%", padding: "10px 12px", border: `1px solid ${form.comment.trim().length > 0 && form.comment.trim().length < 10 ? "#fca5a5" : "#d1d5db"}`, borderRadius: "8px", fontSize: "14px", color: "#111827", resize: "vertical", fontFamily: "sans-serif", boxSizing: "border-box" }}
+              aria-describedby={COMMENT_HINT_ID}
+              aria-invalid={form.comment.trim().length > 0 && form.comment.trim().length < MIN_COMMENT_LENGTH}
+              style={{ width: "100%", padding: "10px 12px", border: `1px solid ${form.comment.trim().length > 0 && form.comment.trim().length < MIN_COMMENT_LENGTH ? "#fca5a5" : "#d1d5db"}`, borderRadius: "8px", fontSize: "14px", color: "#111827", resize: "vertical", fontFamily: "sans-serif", boxSizing: "border-box" }}
             />
-            <p style={{ margin: "4px 0 0", fontSize: "12px", color: commentTrimmed.length < 10 ? "#9ca3af" : "#16a34a" }}>
-              {commentTrimmed.length} / 10 minimum characters
+            <p id={COMMENT_HINT_ID} style={{ margin: "4px 0 0", fontSize: "12px", color: commentTrimmed.length < MIN_COMMENT_LENGTH ? "#9ca3af" : "#16a34a" }}>
+              {commentTrimmed.length} / {MIN_COMMENT_LENGTH} minimum characters
             </p>
           </div>
 
           {/* Accessibility features */}
           <div>
-            <p style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+            <p style={{ margin: "0 0 4px", fontSize: "13px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>
               Accessibility Notes
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
-                <input type="checkbox" checked={form.wheelchair_accessible} onChange={(e) => setForm((f) => ({ ...f, wheelchair_accessible: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-                ♿ Ramps / wheelchair accessible
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
-                <input type="checkbox" checked={form.accessible_parking} onChange={(e) => setForm((f) => ({ ...f, accessible_parking: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-                🚗 Accessible parking available
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
-                <input type="checkbox" checked={form.accessible_restrooms} onChange={(e) => setForm((f) => ({ ...f, accessible_restrooms: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-                🚻 Accessible restrooms
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
-                <input type="checkbox" checked={form.elevator} onChange={(e) => setForm((f) => ({ ...f, elevator: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-                🛗 Elevator available
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
-                <input type="checkbox" checked={form.auto_doors} onChange={(e) => setForm((f) => ({ ...f, auto_doors: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-                🚪 Automatic doors
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
-                <input type="checkbox" checked={form.wheelchair_accessible_tables} onChange={(e) => setForm((f) => ({ ...f, wheelchair_accessible_tables: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-                🪑 Wheelchair-accessible tables
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", color: "#374151" }}>
-                <input type="checkbox" checked={form.handrails_available} onChange={(e) => setForm((f) => ({ ...f, handrails_available: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-                🪜 Handrails available
-              </label>
-            </div>
-            <div style={{ marginTop: "12px" }}>
-              <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#374151" }}>Entrance width</label>
+            <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#9ca3af" }}>
+              Choose "Unsure" for anything you didn't check — that keeps it from being recorded as "No".
+            </p>
+            <TriToggle label="♿ Ramps / wheelchair accessible" value={form.wheelchair_accessible} onChange={(v) => setForm((f) => ({ ...f, wheelchair_accessible: v }))} />
+            <TriToggle label="🚗 Accessible parking available" value={form.accessible_parking} onChange={(v) => setForm((f) => ({ ...f, accessible_parking: v }))} />
+            <TriToggle label="🚻 Accessible restrooms" value={form.accessible_restrooms} onChange={(v) => setForm((f) => ({ ...f, accessible_restrooms: v }))} />
+            <TriToggle label="🛗 Elevator available" value={form.elevator} onChange={(v) => setForm((f) => ({ ...f, elevator: v }))} />
+            <TriToggle label="🚪 Automatic doors" value={form.auto_doors} onChange={(v) => setForm((f) => ({ ...f, auto_doors: v }))} />
+            <TriToggle label="🪑 Wheelchair-accessible tables" value={form.wheelchair_accessible_tables} onChange={(v) => setForm((f) => ({ ...f, wheelchair_accessible_tables: v }))} />
+            <TriToggle label="🪜 Handrails available" value={form.handrails_available} onChange={(v) => setForm((f) => ({ ...f, handrails_available: v }))} />
+            <div style={{ marginTop: "4px" }}>
+              <label htmlFor="review-entrance-width" style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: "600", color: "#374151" }}>Entrance width</label>
               <select
-                value={form.entrance_width_rating}
-                onChange={(e) => setForm((f) => ({ ...f, entrance_width_rating: e.target.value }))}
+                id="review-entrance-width"
+                value={form.entrance_width_rating ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, entrance_width_rating: e.target.value || null }))}
                 style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "14px", color: "#111827", backgroundColor: "#fff", cursor: "pointer" }}
               >
+                <option value="">Unsure</option>
                 <option value="wide">Wide — fully accessible</option>
                 <option value="standard">Standard — 36" minimum</option>
                 <option value="narrow">Narrow — may be difficult</option>
@@ -207,7 +200,10 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
         <div style={{ padding: "16px 24px", borderTop: "1px solid #f3f4f6", flexShrink: 0 }}>
           <button
             onClick={handleSubmit}
-            disabled={!valid || submitting}
+            aria-disabled={!valid || submitting}
+            aria-describedby={COMMENT_HINT_ID}
+            title={!valid && !submitting ? `Enter at least ${MIN_COMMENT_LENGTH} characters and a star rating to submit.` : undefined}
+            onKeyDown={(e) => { if ((!valid || submitting) && (e.key === "Enter" || e.key === " ")) e.preventDefault(); }}
             style={{
               width:           "100%",
               padding:         "12px",
@@ -217,7 +213,7 @@ export default function ReviewFormModal({ businessId, onClose, onSuccess }) {
               borderRadius:    "10px",
               fontSize:        "15px",
               fontWeight:      "600",
-              cursor:          !valid || submitting ? "default" : "pointer",
+              cursor:          !valid || submitting ? "not-allowed" : "pointer",
               transition:      "background-color 0.2s",
             }}
           >

@@ -8,8 +8,15 @@ class Business(BaseModel):
     address: str
     latitude: float
     longitude: float
-    wheelchair_accessible: bool
-    accessible_parking: bool
+    # Tri-state (True/False/None = Yes/No/Unsure), same convention as every
+    # other accessibility field below. Previously declared as required bool,
+    # which crashed GET /{business_id} (and silently dropped the business
+    # from GET / entirely) the moment an owner picked "Unsure" for either
+    # field via the dashboard's accessibility editor (routers/dashboard.py's
+    # BusinessProfileUpdate already treated them as optional) — or the
+    # moment either was left unanswered on the create-from-external flow.
+    wheelchair_accessible: Optional[bool] = None
+    accessible_parking:    Optional[bool] = None
     entrance_width_rating: Optional[str]  = None  # "narrow", "standard", "wide"
     accessible_restrooms:  Optional[bool] = None
     elevator:              Optional[bool] = None
@@ -24,10 +31,18 @@ class Business(BaseModel):
     service_animal_support:  Optional[bool] = None
     accessibilityNotes:          Optional[dict[str, str]] = None  # feature key -> short note
     accessibilityNotApplicable:  Optional[list[str]]      = None  # feature keys marked N/A
+    # Per-field crowd signal, maintained by services/accessibility.py. A field
+    # is only ever set by the *first* report; later agreeing reports increment
+    # its confirmation count, disagreeing ones increment its conflict count
+    # instead of silently overwriting the field. Keys are Business field names
+    # (e.g. "wheelchair_accessible"), values are counts.
+    accessibility_confirmations: Optional[dict[str, int]] = None
+    accessibility_conflicts:     Optional[dict[str, int]] = None
     description:           Optional[str]   = None   # business owner bio / description
     community_score:       Optional[float] = None   # avg star rating from reviews
     review_count:          Optional[int]   = None   # number of approved reviews
     contributors_count:    Optional[int]   = None   # unique users who contributed reviews or photos
+    photo_count:           Optional[int]   = None   # number of photos in the photos subcollection
     last_updated:          Optional[str]   = None   # ISO-8601 UTC, set on any contribution
     accessibility_score:   Optional[int]   = None   # computed at read time, not stored
     photos: list[str] = []
@@ -64,8 +79,8 @@ class BusinessSummary(BaseModel):
     address: str
     latitude: float
     longitude: float
-    wheelchair_accessible: bool
-    accessible_parking: bool
+    wheelchair_accessible: Optional[bool] = None
+    accessible_parking:    Optional[bool] = None
     accessible_restrooms:  Optional[bool] = None
     elevator:              Optional[bool] = None
     auto_doors:                   Optional[bool] = None
@@ -74,8 +89,11 @@ class BusinessSummary(BaseModel):
     community_score:       Optional[float] = None   # avg star rating from reviews
     review_count:          Optional[int]   = None   # number of approved reviews
     contributors_count:    Optional[int]   = None   # unique users who contributed reviews or photos
+    photo_count:           Optional[int]   = None   # number of photos in the photos subcollection
     last_updated:          Optional[str]   = None   # ISO-8601 UTC, set on any contribution
     accessibility_score:   Optional[int]   = None   # computed at read time, not stored
+    accessibility_confirmations: Optional[dict[str, int]] = None
+    accessibility_conflicts:     Optional[dict[str, int]] = None
     category:              Optional[str]   = None
     verified:               Optional[bool] = None   # Pathable-reviewed accessibility info (unrelated to ownership)
     claimed:                 Optional[bool] = None   # whether a business account already manages this listing

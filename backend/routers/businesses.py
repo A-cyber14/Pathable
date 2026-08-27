@@ -1,10 +1,12 @@
+import logging
 from fastapi import APIRouter, HTTPException, Query, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 from models.business import Business, BusinessSummary
 from services.firebase import db, get_contributor_uid
 from services.scoring import calculate_accessibility_score
 from services.stats import recalculate_business_stats
+from services.accessibility import apply_accessibility_report
 from services.maps import get_maps_client
 from services.duplicates import find_duplicate_business_id
 from services.billing import photo_limit_for_plan
@@ -13,8 +15,10 @@ import firebase_admin.auth as firebase_auth
 import uuid
 
 router = APIRouter()
+logger = logging.getLogger("pathable.contributions")
 
 COLLECTION = "businesses"
+BUSINESS_REQUESTS_COLLECTION = "business_requests"
 
 # Pinellas County center — used to bias Google Places results
 PINELLAS_LAT = 27.9072
@@ -213,20 +217,84 @@ def search_unified(q: str = Query(..., description="Unified search query")):
 
 
 # ---------------------------------------------------------------------------
+# POST /api/businesses/request-listing
+# "Request this business" — Option A of the Add-to-Pathable flow. Does NOT
+# create a business document (avoids empty/useless listings). Just records
+# enough for Pathable/admins to identify and add the location later.
+# Must be registered BEFORE /{business_id} to avoid route shadowing.
+# ---------------------------------------------------------------------------
+
+class BusinessRequestSubmission(BaseModel):
+    name:     str
+    address:  str
+    place_id: Optional[str] = None
+    notes:    Optional[str] = None
+
+    @field_validator("name", "address")
+    @classmethod
+    def not_blank(cls, v):
+        if not v or not v.strip():
+            raise ValueError("This field is required")
+        return v.strip()
+
+
+@router.post("/request-listing", status_code=201)
+def request_business_listing(body: BusinessRequestSubmission, authorization: str = Header(...)):
+    uid = get_uid(authorization)
+    try:
+        db.collection(BUSINESS_REQUESTS_COLLECTION).add({
+            "name":         body.name,
+            "address":      body.address,
+            "place_id":     body.place_id,
+            "notes":        (body.notes or "").strip() or None,
+            "requestedBy":  uid,
+            "status":       "pending_review",
+            "createdAt":    datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        logger.exception(
+            "Failed to save business listing request — stage=firestore_write uid=%s name=%s",
+            uid, body.name,
+        )
+        raise HTTPException(status_code=500, detail="Failed to submit your request. Please try again.")
+
+    return {"message": "Thanks — we'll review this and add it to Pathable."}
+
+
+# ---------------------------------------------------------------------------
 # POST /api/businesses/create-from-external
-# Creates a new business from an external (Google Places) result.
+# Creates a new business from an external (Google Places) result — Option B
+# of the Add-to-Pathable flow ("Add information about this business").
+# Requires a real initial contribution (a short description of what the user
+# knows about the location) so this can't be used to spin up an empty
+# listing — see UnverifiedBusinessPage.jsx's AddToPathableModal.
 # Checks for duplicates first — by place_id, then by name+address similarity.
 # Must be registered BEFORE /{business_id} to avoid route shadowing.
 # ---------------------------------------------------------------------------
 
 class CreateFromExternalRequest(BaseModel):
-    name:     str
-    address:  str
+    name:        str
+    address:     str
+    description: str   # required — see docstring above
     lat:      Optional[float] = None
     lng:      Optional[float] = None
     place_id: Optional[str]   = None
     wheelchair_accessible: Optional[bool] = None
     accessible_parking:    Optional[bool] = None
+
+    @field_validator("name", "address")
+    @classmethod
+    def not_blank(cls, v):
+        if not v or not v.strip():
+            raise ValueError("This field is required")
+        return v.strip()
+
+    @field_validator("description")
+    @classmethod
+    def description_min_length(cls, v):
+        if not v or len(v.strip()) < 10:
+            raise ValueError("description must be at least 10 characters")
+        return v.strip()
 
 
 class CreateFromExternalResponse(BaseModel):
@@ -235,7 +303,9 @@ class CreateFromExternalResponse(BaseModel):
 
 
 @router.post("/create-from-external", response_model=CreateFromExternalResponse, status_code=200)
-def create_from_external(body: CreateFromExternalRequest):
+def create_from_external(body: CreateFromExternalRequest, authorization: str = Header(...)):
+    uid = get_uid(authorization)
+
     duplicate_id = find_duplicate_business_id(body.name, body.address, body.place_id)
     if duplicate_id:
         return CreateFromExternalResponse(id=duplicate_id, existing=True)
@@ -244,17 +314,40 @@ def create_from_external(body: CreateFromExternalRequest):
     new_id = uuid.uuid4().hex
     now    = datetime.now(timezone.utc).isoformat()
 
-    db.collection(COLLECTION).document(new_id).set({
-        "name":                  body.name.strip(),
-        "address":               body.address.strip(),
-        "latitude":              body.lat  or 0.0,
-        "longitude":             body.lng  or 0.0,
-        "wheelchair_accessible": body.wheelchair_accessible if body.wheelchair_accessible is not None else False,
-        "accessible_parking":    body.accessible_parking    if body.accessible_parking    is not None else False,
-        "googlePlaceId":         body.place_id,
-        "last_updated":          now,
-        "source":                "user_submitted",
-    })
+    try:
+        db.collection(COLLECTION).document(new_id).set({
+            "name":                  body.name,
+            "address":               body.address,
+            "description":           body.description,
+            "latitude":              body.lat  or 0.0,
+            "longitude":             body.lng  or 0.0,
+            "wheelchair_accessible": body.wheelchair_accessible,
+            "accessible_parking":    body.accessible_parking,
+            "googlePlaceId":         body.place_id,
+            "last_updated":          now,
+            "source":                "user_submitted",
+            "createdBy":             uid,
+        })
+    except Exception:
+        logger.exception(
+            "Failed to create business from external place — stage=firestore_write uid=%s name=%s",
+            uid, body.name,
+        )
+        raise HTTPException(status_code=500, detail="Failed to add this business. Please try again.")
+
+    # The two optional tri-state fields the user answered are the business's
+    # first accessibility reports — route them through the same aggregation
+    # path everything else uses so confirmation counts start consistent.
+    try:
+        apply_accessibility_report(new_id, {
+            "wheelchair_accessible": body.wheelchair_accessible,
+            "accessible_parking":    body.accessible_parking,
+        })
+    except Exception:
+        logger.exception(
+            "Failed to apply initial accessibility report — stage=apply_accessibility_report business_id=%s",
+            new_id,
+        )
 
     return CreateFromExternalResponse(id=new_id, existing=False)
 
@@ -394,8 +487,14 @@ class PhotoSubmission(BaseModel):
     photoUrl:   str
     category:   Optional[str] = None
     caption:    Optional[str] = None
-    uploadedBy: Optional[str] = None
     mediaType:  Optional[str] = "image"  # "image" | "video"
+
+    @field_validator("photoUrl")
+    @classmethod
+    def photo_url_required(cls, v):
+        if not v or not v.strip():
+            raise ValueError("photoUrl is required")
+        return v.strip()
 
 
 @router.post("/{business_id}/photos", status_code=201)
@@ -429,35 +528,51 @@ def submit_photo(business_id: str, body: PhotoSubmission, authorization: str = H
     category   = body.category or "Other"
     media_type = body.mediaType if body.mediaType in ("image", "video") else "image"
 
-    # 1. Moderation audit trail (unchanged behaviour)
-    db.collection("contributions").add({
-        "businessId": business_id,
-        "userId":     uid,
-        "type":       "photo",
-        "photoUrl":   body.photoUrl,
-        "category":   category,
-        "caption":    body.caption,
-        "uploadedBy": body.uploadedBy or uid,
-        "mediaType":  media_type,
-        "status":     "pending_review",
-        "verified":   False,
-        "createdAt":  now,
-    })
+    try:
+        # 1. Moderation audit trail (unchanged behaviour)
+        db.collection("contributions").add({
+            "businessId": business_id,
+            "userId":     uid,
+            "type":       "photo",
+            "photoUrl":   body.photoUrl,
+            "category":   category,
+            "caption":    body.caption,
+            "uploadedBy": uid,
+            "mediaType":  media_type,
+            "status":     "pending_review",
+            "verified":   False,
+            "createdAt":  now,
+        })
 
-    # 2. Immediately surface in photos subcollection for display
-    photo_id = uuid.uuid4().hex
-    db.collection(COLLECTION).document(business_id).collection("photos").document(photo_id).set({
-        "photoUrl":   body.photoUrl,
-        "category":   category,
-        "caption":    body.caption,
-        "uploadedBy": body.uploadedBy or uid,
-        "mediaType":  media_type,
-        "createdAt":  now,
-    })
+        # 2. Immediately surface in photos subcollection for display
+        photo_id = uuid.uuid4().hex
+        db.collection(COLLECTION).document(business_id).collection("photos").document(photo_id).set({
+            "photoUrl":   body.photoUrl,
+            "category":   category,
+            "caption":    body.caption,
+            "uploadedBy": uid,
+            "mediaType":  media_type,
+            "createdAt":  now,
+        })
+    except Exception:
+        logger.exception(
+            "Failed to save photo contribution — stage=firestore_write business_id=%s uid=%s category=%s",
+            business_id, uid, category,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Your photo uploaded, but we couldn't save it to this business. Please try again.",
+        )
 
-    recalculate_business_stats(business_id)
+    try:
+        recalculate_business_stats(business_id)
+    except Exception:
+        logger.exception(
+            "Failed to recalculate business stats after photo — stage=recalculate_stats business_id=%s",
+            business_id,
+        )
 
-    return {"message": "Media submitted and is now visible on the business page"}
+    return {"message": "Media submitted and is now visible on the business page", "id": photo_id}
 
 
 # ---------------------------------------------------------------------------
@@ -564,6 +679,9 @@ def get_business_photos(business_id: str):
 # ---------------------------------------------------------------------------
 
 class FeaturesSubmission(BaseModel):
+    # All Optional[bool] = tri-state (True/False/None = Yes/No/Unsure). A
+    # field left at None means "the contributor didn't answer this" and must
+    # never be treated as a confirmed "No" — see services/accessibility.py.
     wheelchairAccessible:        Optional[bool] = None
     accessibleParking:           Optional[bool] = None
     doorWidth:                   Optional[int]  = None
@@ -580,24 +698,68 @@ def submit_features(business_id: str, body: FeaturesSubmission, authorization: s
     if not db.collection(COLLECTION).document(business_id).get().exists:
         raise HTTPException(status_code=404, detail=f"Business '{business_id}' not found")
 
-    db.collection("contributions").add({
-        "businessId":           business_id,
-        "userId":               uid,
-        "type":                 "features",
-        "wheelchairAccessible":       body.wheelchairAccessible,
-        "accessibleParking":          body.accessibleParking,
-        "doorWidth":                  body.doorWidth,
-        "accessibleRestroom":         body.accessibleRestroom,
-        "wheelchairAccessibleTables": body.wheelchairAccessibleTables,
-        "handrailsAvailable":         body.handrailsAvailable,
-        "notes":                      body.notes,
-        "status":               "pending_review",
-        "createdAt":            datetime.now(timezone.utc).isoformat(),
-    })
+    has_content = any([
+        body.wheelchairAccessible is not None,
+        body.accessibleParking    is not None,
+        body.doorWidth            is not None,
+        body.accessibleRestroom   is not None,
+        body.wheelchairAccessibleTables is not None,
+        body.handrailsAvailable   is not None,
+        body.notes and body.notes.strip(),
+    ])
+    if not has_content:
+        raise HTTPException(status_code=422, detail="Please answer at least one field before submitting.")
 
-    recalculate_business_stats(business_id)
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        # Moderation audit trail — the data itself is applied to the business
+        # below (same "live immediately, community-submitted" trust model as
+        # reviews and photos), this record exists so admins can review/take
+        # down bad-faith submissions after the fact.
+        db.collection("contributions").add({
+            "businessId":           business_id,
+            "userId":               uid,
+            "type":                 "features",
+            "wheelchairAccessible":       body.wheelchairAccessible,
+            "accessibleParking":          body.accessibleParking,
+            "doorWidth":                  body.doorWidth,
+            "accessibleRestroom":         body.accessibleRestroom,
+            "wheelchairAccessibleTables": body.wheelchairAccessibleTables,
+            "handrailsAvailable":         body.handrailsAvailable,
+            "notes":                      body.notes,
+            "status":               "pending_review",
+            "createdAt":            now,
+        })
+    except Exception:
+        logger.exception(
+            "Failed to save features contribution — stage=firestore_write business_id=%s uid=%s",
+            business_id, uid,
+        )
+        raise HTTPException(status_code=500, detail="Failed to save your submission. Please try again.")
 
-    return {"message": "Features submitted for review"}
+    try:
+        apply_accessibility_report(business_id, {
+            "wheelchair_accessible":        body.wheelchairAccessible,
+            "accessible_parking":           body.accessibleParking,
+            "accessible_restrooms":         body.accessibleRestroom,
+            "wheelchair_accessible_tables": body.wheelchairAccessibleTables,
+            "handrails_available":          body.handrailsAvailable,
+        })
+    except Exception:
+        logger.exception(
+            "Failed to apply accessibility report from features — stage=apply_accessibility_report business_id=%s",
+            business_id,
+        )
+
+    try:
+        recalculate_business_stats(business_id)
+    except Exception:
+        logger.exception(
+            "Failed to recalculate business stats after features — stage=recalculate_stats business_id=%s",
+            business_id,
+        )
+
+    return {"message": "Accessibility info added — thank you for contributing!"}
 
 
 # ---------------------------------------------------------------------------

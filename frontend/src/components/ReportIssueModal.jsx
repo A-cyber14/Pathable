@@ -448,14 +448,15 @@ export default function ReportIssueModal({ businessId, initialFeature, onClose, 
         <div style={{ padding: "16px 24px", borderTop: "1px solid #f3f4f6", flexShrink: 0 }}>
           <button
             onClick={handleSubmit}
-            disabled={!valid || uploading}
+            aria-disabled={!valid || uploading}
+            title={!valid && !uploading ? "Select a feature, an issue type, at least 10 characters of description, and 1 photo to submit." : undefined}
             style={{
               width: "100%", padding: "13px",
               backgroundColor: !valid || uploading ? "#d1d5db" : "#111827",
               color: !valid || uploading ? "#9ca3af" : "#fff",
               border: "none", borderRadius: "10px",
               fontSize: "15px", fontWeight: "600",
-              cursor: !valid || uploading ? "default" : "pointer",
+              cursor: !valid || uploading ? "not-allowed" : "pointer",
               transition: "background-color 0.2s",
             }}
           >

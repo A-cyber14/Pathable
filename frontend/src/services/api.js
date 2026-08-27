@@ -72,6 +72,7 @@ export async function submitFeatures(id, data)      { return api.post(`/api/busi
 export async function submitIssueReport(id, data)   { return api.post(`/api/businesses/${id}/issue-reports`, data); }
 export async function getPendingIssueReports(id)    { return api.get(`/api/businesses/${id}/issue-reports/pending`); }
 export async function createFromExternal(data)      { return api.post("/api/businesses/create-from-external", data); }
+export async function requestBusinessListing(data)  { return api.post("/api/businesses/request-listing", data); }
 
 // ---------------------------------------------------------------------------
 // Onboarding — account type + business setup

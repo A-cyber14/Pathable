@@ -5,9 +5,11 @@ import { storage } from "../firebase";
 import { getBusiness, addBookmark, removeBookmark, getBookmarks, getProfile, getBusinessPhotos, submitPhoto, submitFeatures, submitReview, getPendingIssueReports } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { deleteObject } from "firebase/storage";
 import CommunityRating from "../components/CommunityRating";
 import StarRating from "../components/StarRating";
 import ReportIssueModal from "../components/ReportIssueModal";
+import TriToggle from "../components/TriToggle";
 
 const PHOTO_SLOTS = [
   { label: "Entrance",          key: "entrance", icon: "🚪" },
@@ -620,16 +622,21 @@ function buildConfidenceData(business, allPhotos) {
   const catHasPhotos = (cat) =>
     allPhotos.some((p) => normalizeCategory(p.category) === cat);
 
-  const makeAttr = (photoCat) => {
+  const realConfirmations = business.accessibility_confirmations || {};
+  const realConflicts     = business.accessibility_conflicts || {};
+
+  const makeAttr = (photoCat, fieldKey) => {
     const hasPhotoEvidence = catHasPhotos(photoCat);
-    // `contributors` is used as a proxy for confirmations until the backend
-    // tracks per-attribute confirmation counts separately.
-    const confirmations = contributors;
+    // Real per-field counts from services/accessibility.py when available;
+    // fall back to the contributors proxy for businesses that predate that
+    // tracking (their fields were set once at onboarding, never confirmed).
+    const confirmations = realConfirmations[fieldKey] ?? contributors;
+    const conflicts      = realConflicts[fieldKey] ?? 0;
     const level =
       confirmations >= 5 ? "high" :
       confirmations >= 2 ? "medium" :
       confirmations >= 1 ? "low" : "unknown";
-    return { level, confirmations, conflicts: 0, hasPhotoEvidence, lastUpdatedDays: null };
+    return { level, confirmations, conflicts, hasPhotoEvidence, lastUpdatedDays: null };
   };
 
   return {
@@ -640,7 +647,7 @@ function buildConfidenceData(business, allPhotos) {
     isVerified,
     overallLevel,
     attributes: Object.fromEntries(
-      Object.entries(ATTR_PHOTO_CAT).map(([key, cat]) => [key, makeAttr(cat)])
+      Object.entries(ATTR_PHOTO_CAT).map(([key, cat]) => [key, makeAttr(cat, key)])
     ),
   };
 }
@@ -765,42 +772,55 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
   const [error,   setError]   = useState(null);
 
   // ── Review state ────────────────────────────────────────────────────────
+  // Accessibility fields default to null ("Unsure"), never false — see
+  // services/accessibility.py for why an un-answered field must never be
+  // recorded as a confirmed "No".
   const [reviewForm, setReviewForm] = useState({
     rating: 0, comment: "",
-    wheelchair_accessible: false, accessible_parking: false,
-    accessible_restrooms: false, elevator: false, auto_doors: false,
-    entrance_width_rating: "standard",
-    wheelchair_accessible_tables: false, handrails_available: false,
+    wheelchair_accessible: null, accessible_parking: null,
+    accessible_restrooms: null, elevator: null, auto_doors: null,
+    entrance_width_rating: null,
+    wheelchair_accessible_tables: null, handrails_available: null,
   });
   const [hoverRating,      setHoverRating]      = useState(0);
   const [submittingReview, setSubmittingReview] = useState(false);
 
   // ── Photo state ──────────────────────────────────────────────────────────
-  const [category,   setCategory]   = useState(initialCategory);
-  const [file,       setFile]       = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [caption,    setCaption]    = useState("");
-  const [uploading,  setUploading]  = useState(false);
-  const [uploadPct,  setUploadPct]  = useState(0);
-  const [dragOver,   setDragOver]   = useState(false);
+  // Each entry: { id, file, previewUrl, status: 'pending'|'uploading'|'done'|'error', progress, error }
+  const [category,    setCategory]    = useState(initialCategory);
+  const [photoItems,  setPhotoItems]  = useState([]);
+  const [caption,     setCaption]     = useState("");
+  const [uploading,   setUploading]   = useState(false);
+  const [uploadedN,   setUploadedN]   = useState(0);
+  const [dragOver,    setDragOver]    = useState(false);
   const fileInputRef = useRef(null);
 
   // ── Features state ───────────────────────────────────────────────────────
   const [featureForm, setFeatureForm] = useState({
-    wheelchairAccessible: false, accessibleParking: false,
-    accessibleRestroom: false, wheelchairAccessibleTables: false,
-    handrailsAvailable: false, doorWidth: "",
+    wheelchairAccessible: null, accessibleParking: null,
+    accessibleRestroom: null, wheelchairAccessibleTables: null,
+    handrailsAvailable: null, doorWidth: "",
   });
   const [submittingFeatures, setSubmittingFeatures] = useState(false);
 
   const switchTab = (t) => { setTab(t); setSuccess(null); setError(null); };
 
+  // Revoke any outstanding preview object URLs when the modal unmounts.
+  useEffect(() => () => {
+    photoItems.forEach((it) => URL.revokeObjectURL(it.previewUrl));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function genId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+  const MIN_COMMENT_LENGTH = 10;
+  const MAX_PHOTO_FILES    = 10;
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleReviewSubmit = async (e) => {
     if (!currentUser) { navigate("/login"); return; }
-    if (reviewForm.rating < 1 || reviewForm.comment.trim().length < 10) return;
+    if (submittingReview) return;
+    if (reviewForm.rating < 1 || reviewForm.comment.trim().length < MIN_COMMENT_LENGTH) return;
     const anchor = e.currentTarget;
     setError(null); setSubmittingReview(true);
     try {
@@ -820,20 +840,13 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
       showToast("Review submitted", "success", anchor);
       onReviewSuccess?.();
     } catch (err) {
-      setError(err.message || "Failed to submit.");
+      setError(err.message || "Failed to submit. Your answers were kept — please try again.");
       showToast("Couldn't submit review", "error", anchor);
     }
     finally { setSubmittingReview(false); }
   };
 
-  const clearSelectedFile = () => {
-    setFile(null);
-    setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
-    setCaption("");
-  };
-
-  const processFile = (f, hintType = "") => {
-    if (!f) return;
+  const validatePhotoFile = (f, hintType = "") => {
     const EXT_TO_MIME = {
       jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp",
       heic: "image/heic", heif: "image/heif",
@@ -842,64 +855,136 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
     const ext      = f.name.split(".").pop()?.toLowerCase();
     const mimeType = f.type || hintType || EXT_TO_MIME[ext] || "";
     const ok = ["image/jpeg","image/jpg","image/png","image/webp","image/heic","image/heif",...ACPT_VID];
-    if (!ok.includes(mimeType))                         { setError("Unsupported file type."); return; }
-    if (ACPT_VID.includes(mimeType) && f.size > 100e6)  { setError("Video too large (max 100MB)."); return; }
-    if (!ACPT_VID.includes(mimeType) && f.size > 10e6)  { setError("Image too large (max 10MB)."); return; }
+    if (!ok.includes(mimeType))                        return { error: "Unsupported file type." };
+    if (ACPT_VID.includes(mimeType) && f.size > 100e6) return { error: "Video too large (max 100MB)." };
+    if (!ACPT_VID.includes(mimeType) && f.size > 10e6) return { error: "Image too large (max 10MB)." };
     const resolved = mimeType !== f.type ? new File([f], f.name, { type: mimeType }) : f;
-    setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(resolved); });
-    setFile(resolved); setError(null);
+    return { file: resolved };
   };
 
-  const handleFileChange = (e) => processFile(e.target.files?.[0]);
+  const addPhotoFiles = (files) => {
+    const room = MAX_PHOTO_FILES - photoItems.length;
+    if (room <= 0) { setError(`You can add up to ${MAX_PHOTO_FILES} files at a time.`); return; }
+    const rejected = [];
+    const accepted = [];
+    files.slice(0, room).forEach(({ file: f, hintType }) => {
+      const { file: resolved, error: err } = validatePhotoFile(f, hintType);
+      if (err) rejected.push(`${f.name}: ${err}`);
+      else accepted.push({ id: genId(), file: resolved, previewUrl: URL.createObjectURL(resolved), status: "pending", progress: 0, error: null });
+    });
+    if (accepted.length) setPhotoItems((prev) => [...prev, ...accepted]);
+    setError(rejected.length ? rejected.join(" ") : null);
+  };
 
-  const extractDroppedFile = (e) => {
+  const removePhotoItem = (id) => {
+    setPhotoItems((prev) => {
+      const found = prev.find((it) => it.id === id);
+      if (found) URL.revokeObjectURL(found.previewUrl);
+      return prev.filter((it) => it.id !== id);
+    });
+  };
+
+  const resetPhotoTab = () => {
+    photoItems.forEach((it) => URL.revokeObjectURL(it.previewUrl));
+    setPhotoItems([]);
+    setCaption("");
+  };
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files || []).map((f) => ({ file: f, hintType: "" }));
+    addPhotoFiles(files);
+    e.target.value = "";
+  };
+
+  const extractDroppedFiles = (e) => {
+    const out = [];
     if (e.dataTransfer.items?.length) {
       for (const item of e.dataTransfer.items) {
         if (item.kind === "file") {
           const f = item.getAsFile();
-          if (f) return { file: f, hintType: item.type || "" };
+          if (f) out.push({ file: f, hintType: item.type || "" });
         }
       }
+    } else if (e.dataTransfer.files?.length) {
+      Array.from(e.dataTransfer.files).forEach((f) => out.push({ file: f, hintType: "" }));
     }
-    const f = e.dataTransfer.files?.[0];
-    return f ? { file: f, hintType: "" } : null;
+    return out;
   };
 
   const handleDrop = (e) => {
     e.preventDefault(); e.stopPropagation(); setDragOver(false);
-    const result = extractDroppedFile(e);
-    if (!result) {
+    const results = extractDroppedFiles(e);
+    if (!results.length) {
       setError("Could not read the dropped file. Drag from Finder/Desktop, or use Choose File.");
       return;
     }
-    processFile(result.file, result.hintType);
+    addPhotoFiles(results);
+  };
+
+  // Uploads one photo item to Storage, then registers it via the API. If the
+  // API call fails after the file made it to Storage, the Storage object is
+  // deleted (best-effort) so it doesn't sit around as an orphan.
+  const uploadOnePhoto = async (item) => {
+    const isVid = ACPT_VID.includes(item.file.type);
+    const ext   = item.file.name.split(".").pop();
+    const sRef  = ref(storage, `business-photos/${businessId}/${category}/${item.id}.${ext}`);
+    let uploadedToStorage = false;
+    try {
+      await new Promise((res, rej) => {
+        const task = uploadBytesResumable(sRef, item.file);
+        task.on(
+          "state_changed",
+          (s) => {
+            const pct = Math.round((s.bytesTransferred / s.totalBytes) * 100);
+            setPhotoItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: "uploading", progress: pct } : it)));
+          },
+          rej, res
+        );
+      });
+      uploadedToStorage = true;
+      const url = await getDownloadURL(sRef);
+      await submitPhoto(businessId, { photoUrl: url, caption, category, mediaType: isVid ? "video" : "image" });
+      setPhotoItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: "done", progress: 100 } : it)));
+      return true;
+    } catch (err) {
+      if (uploadedToStorage) deleteObject(sRef).catch(() => {});
+      setPhotoItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: "error", error: err.message || "Upload failed.", progress: 0 } : it)));
+      return false;
+    }
   };
 
   const handlePhotoSubmit = async (e) => {
-    if (!file) { setError("Please choose a file."); return; }
+    if (uploading) return; // guards against double-click / double-submit
+    const pending = photoItems.filter((it) => it.status === "pending" || it.status === "error");
+    if (pending.length === 0) { setError(photoItems.length === 0 ? "Please choose at least one photo or video." : "All files already uploaded."); return; }
     const anchor = e.currentTarget;
-    setError(null); setUploading(true);
-    try {
-      const isVid = ACPT_VID.includes(file.type);
-      const ext   = file.name.split(".").pop();
-      const sRef  = ref(storage, `business-photos/${businessId}/${category}/${genId()}.${ext}`);
-      await new Promise((res, rej) => {
-        const task = uploadBytesResumable(sRef, file);
-        task.on("state_changed", (s) => setUploadPct(Math.round((s.bytesTransferred/s.totalBytes)*100)), rej, res);
-      });
-      const url = await getDownloadURL(sRef);
-      await submitPhoto(businessId, { photoUrl: url, caption, category, mediaType: isVid ? "video" : "image" });
-      setSuccess("Photo/Video uploaded!");
-      showToast("Photo uploaded", "success", anchor);
-      clearSelectedFile();
-    } catch (err) {
-      setError(err.message || "Upload failed.");
+    setError(null); setUploading(true); setUploadedN(0);
+
+    let successCount = 0, failCount = 0;
+    for (const item of pending) {
+      // eslint-disable-next-line no-await-in-loop
+      const ok = await uploadOnePhoto(item);
+      if (ok) { successCount++; setUploadedN((n) => n + 1); } else failCount++;
+    }
+    setUploading(false);
+
+    if (successCount > 0 && failCount === 0) {
+      setSuccess(`${successCount} ${successCount === 1 ? "file" : "files"} uploaded!`);
+      showToast(`${successCount} ${successCount === 1 ? "file" : "files"} uploaded`, "success", anchor);
+      resetPhotoTab();
+    } else if (successCount > 0) {
+      showToast(`${successCount} uploaded, ${failCount} failed — retry the failed ones below`, "error", anchor);
+      setPhotoItems((prev) => prev.filter((it) => it.status === "error"));
+    } else {
       showToast("Upload failed", "error", anchor);
     }
-    finally { setUploading(false); setUploadPct(0); }
   };
 
+  const featuresHasAnswer = Object.entries(featureForm).some(([key, v]) => (key === "doorWidth" ? v !== "" : v !== null));
+
   const handleFeaturesSubmit = async (e) => {
+    if (submittingFeatures) return;
+    if (!featuresHasAnswer) { setError("Please answer at least one field before submitting."); return; }
     const anchor = e.currentTarget;
     setError(null); setSubmittingFeatures(true);
     try {
@@ -907,17 +992,18 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
         ...featureForm,
         doorWidth: featureForm.doorWidth ? parseInt(featureForm.doorWidth, 10) : null,
       });
-      setSuccess("Accessibility info submitted — thank you!");
+      setSuccess("Accessibility info added — thank you for contributing!");
       showToast("Changes saved", "success", anchor);
     } catch (err) {
-      setError(err.message || "Submission failed.");
+      setError(err.message || "Submission failed. Your answers were kept — please try again.");
       showToast("Couldn't save changes", "error", anchor);
     }
     finally { setSubmittingFeatures(false); }
   };
 
   const inp = { width: "100%", padding: "9px 12px", fontSize: "14px", border: "1px solid #d1d5db", borderRadius: "8px", outline: "none", boxSizing: "border-box", color: "#111827" };
-  const reviewValid = reviewForm.rating >= 1 && reviewForm.comment.trim().length >= 10;
+  const reviewValid = reviewForm.rating >= 1 && reviewForm.comment.trim().length >= MIN_COMMENT_LENGTH;
+  const uploadablePhotoCount = photoItems.filter((it) => it.status === "pending" || it.status === "error").length;
   const TABS = [
     { key: "review",   label: "Review"       },
     { key: "photo",    label: "Photo/Video"  },
@@ -986,46 +1072,44 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
                     </div>
                   </div>
                   <div>
-                    <label style={{ display: "block", marginBottom: "6px", fontSize: "12px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                    <label htmlFor="modal-review-comment" style={{ display: "block", marginBottom: "6px", fontSize: "12px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>
                       Your Experience <span style={{ color: "#dc2626" }}>*</span>
                     </label>
-                    <textarea value={reviewForm.comment} onChange={(e) => setReviewForm((f) => ({ ...f, comment: e.target.value }))}
+                    <textarea id="modal-review-comment" value={reviewForm.comment} onChange={(e) => setReviewForm((f) => ({ ...f, comment: e.target.value }))}
                       placeholder="Describe the accessibility at this location…" rows={3}
+                      aria-describedby="modal-review-comment-hint"
                       style={{ ...inp, resize: "vertical", fontFamily: "sans-serif" }} />
-                    <p style={{ margin: "3px 0 0", fontSize: "11px", color: reviewForm.comment.trim().length < 10 ? "#9ca3af" : "#16a34a" }}>
-                      {reviewForm.comment.trim().length}/10 minimum characters
+                    <p id="modal-review-comment-hint" style={{ margin: "3px 0 0", fontSize: "11px", color: reviewForm.comment.trim().length < MIN_COMMENT_LENGTH ? "#9ca3af" : "#16a34a" }}>
+                      {reviewForm.comment.trim().length}/{MIN_COMMENT_LENGTH} minimum characters
                     </p>
                   </div>
                   <div>
-                    <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>Accessibility Notes</p>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      {[
-                        { key: "wheelchair_accessible",        label: "♿ Ramps / wheelchair accessible"  },
-                        { key: "accessible_parking",           label: "🚗 Accessible parking"             },
-                        { key: "accessible_restrooms",         label: "🚻 Accessible restrooms"           },
-                        { key: "elevator",                     label: "🛗 Elevator"                       },
-                        { key: "auto_doors",                   label: "🚪 Automatic doors"                },
-                        { key: "wheelchair_accessible_tables", label: "🪑 Wheelchair-accessible tables"   },
-                        { key: "handrails_available",          label: "🪜 Handrails available"            },
-                      ].map(({ key, label }) => (
-                        <label key={key} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px", color: "#374151" }}>
-                          <input type="checkbox" checked={reviewForm[key]} onChange={(e) => setReviewForm((f) => ({ ...f, [key]: e.target.checked }))} style={{ width: "15px", height: "15px", cursor: "pointer" }} />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-                    <div style={{ marginTop: "10px" }}>
-                      <label style={{ display: "block", marginBottom: "5px", fontSize: "12px", color: "#374151" }}>Entrance width</label>
-                      <select value={reviewForm.entrance_width_rating} onChange={(e) => setReviewForm((f) => ({ ...f, entrance_width_rating: e.target.value }))}
+                    <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: "600", color: "#374151", textTransform: "uppercase", letterSpacing: "0.4px" }}>Accessibility Notes</p>
+                    <p style={{ margin: "0 0 8px", fontSize: "11px", color: "#9ca3af" }}>Choose "Unsure" for anything you didn't check.</p>
+                    <TriToggle label="♿ Ramps / wheelchair accessible" value={reviewForm.wheelchair_accessible} onChange={(v) => setReviewForm((f) => ({ ...f, wheelchair_accessible: v }))} />
+                    <TriToggle label="🚗 Accessible parking" value={reviewForm.accessible_parking} onChange={(v) => setReviewForm((f) => ({ ...f, accessible_parking: v }))} />
+                    <TriToggle label="🚻 Accessible restrooms" value={reviewForm.accessible_restrooms} onChange={(v) => setReviewForm((f) => ({ ...f, accessible_restrooms: v }))} />
+                    <TriToggle label="🛗 Elevator" value={reviewForm.elevator} onChange={(v) => setReviewForm((f) => ({ ...f, elevator: v }))} />
+                    <TriToggle label="🚪 Automatic doors" value={reviewForm.auto_doors} onChange={(v) => setReviewForm((f) => ({ ...f, auto_doors: v }))} />
+                    <TriToggle label="🪑 Wheelchair-accessible tables" value={reviewForm.wheelchair_accessible_tables} onChange={(v) => setReviewForm((f) => ({ ...f, wheelchair_accessible_tables: v }))} />
+                    <TriToggle label="🪜 Handrails available" value={reviewForm.handrails_available} onChange={(v) => setReviewForm((f) => ({ ...f, handrails_available: v }))} />
+                    <div style={{ marginTop: "4px" }}>
+                      <label htmlFor="modal-entrance-width" style={{ display: "block", marginBottom: "5px", fontSize: "12px", color: "#374151" }}>Entrance width</label>
+                      <select id="modal-entrance-width" value={reviewForm.entrance_width_rating ?? ""} onChange={(e) => setReviewForm((f) => ({ ...f, entrance_width_rating: e.target.value || null }))}
                         style={{ ...inp, backgroundColor: "#fff", cursor: "pointer" }}>
+                        <option value="">Unsure</option>
                         <option value="wide">Wide — fully accessible</option>
                         <option value="standard">Standard — 36" minimum</option>
                         <option value="narrow">Narrow — may be difficult</option>
                       </select>
                     </div>
                   </div>
-                  <button onClick={handleReviewSubmit} disabled={!reviewValid || submittingReview}
-                    style={{ padding: "11px", backgroundColor: !reviewValid || submittingReview ? "#d1d5db" : "#111827", color: !reviewValid || submittingReview ? "#9ca3af" : "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: !reviewValid || submittingReview ? "default" : "pointer" }}>
+                  <button
+                    onClick={handleReviewSubmit}
+                    aria-disabled={!reviewValid || submittingReview}
+                    title={!reviewValid && !submittingReview ? `Enter at least ${MIN_COMMENT_LENGTH} characters and a star rating to submit.` : undefined}
+                    onKeyDown={(e) => { if ((!reviewValid || submittingReview) && (e.key === "Enter" || e.key === " ")) e.preventDefault(); }}
+                    style={{ padding: "11px", backgroundColor: !reviewValid || submittingReview ? "#d1d5db" : "#111827", color: !reviewValid || submittingReview ? "#9ca3af" : "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: !reviewValid || submittingReview ? "not-allowed" : "pointer" }}>
                     {submittingReview ? "Submitting…" : "Submit Review"}
                   </button>
                 </>
@@ -1038,9 +1122,9 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
             <>
               <div>
                 <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "600", color: "#374151" }}>Category</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                <div role="group" aria-label="Photo category" style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                   {PHOTO_CATS.map(({ key, label, icon }) => (
-                    <button key={key} onClick={() => setCategory(key)}
+                    <button key={key} type="button" aria-pressed={category === key} onClick={() => setCategory(key)}
                       style={{ padding: "5px 12px", borderRadius: "999px", fontSize: "13px", border: `1.5px solid ${category === key ? "#2563eb" : "#e5e7eb"}`, backgroundColor: category === key ? "#eff6ff" : "#fff", color: category === key ? "#1d4ed8" : "#374151", cursor: "pointer", fontWeight: category === key ? "600" : "400" }}>
                       {icon} {label}
                     </button>
@@ -1048,41 +1132,72 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
                 </div>
               </div>
               <div>
-                <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "600", color: "#374151" }}>Photo or Video</p>
+                <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "600", color: "#374151" }}>Photos or Videos</p>
                 <div
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => photoItems.length < MAX_PHOTO_FILES && fileInputRef.current?.click()}
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
                   onDrop={handleDrop}
                   style={{ border: `2px dashed ${dragOver ? "#2563eb" : "#d1d5db"}`, borderRadius: "10px", padding: "20px", textAlign: "center", cursor: "pointer", backgroundColor: dragOver ? "#eff6ff" : "#f9fafb", transition: "border-color 0.15s, background-color 0.15s" }}>
-                  {previewUrl ? (
-                    ACPT_VID.includes(file?.type)
-                      ? <video src={previewUrl} style={{ maxHeight: "120px", maxWidth: "100%", borderRadius: "6px" }} />
-                      : <img src={previewUrl} alt="preview" style={{ maxHeight: "120px", maxWidth: "100%", borderRadius: "6px", objectFit: "cover" }} />
-                  ) : (
-                    <><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={dragOver ? "#2563eb" : "#9ca3af"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: "6px" }}>
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                    <p style={{ margin: 0, fontSize: "13px", color: dragOver ? "#2563eb" : "#6b7280" }}>{dragOver ? "Drop to upload" : "Click or drag a photo/video here"}</p>
-                    {!dragOver && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#9ca3af" }}>Drag from Finder/Desktop for best results. If dragging from Photos doesn&apos;t work, use Choose File.</p>}</>
-                  )}
-                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/webm,video/quicktime" onChange={handleFileChange} style={{ display: "none" }} />
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={dragOver ? "#2563eb" : "#9ca3af"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: "6px" }}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <p style={{ margin: 0, fontSize: "13px", color: dragOver ? "#2563eb" : "#6b7280" }}>{dragOver ? "Drop to upload" : "Click or drag photos/videos here — you can select more than one"}</p>
+                  {!dragOver && <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#9ca3af" }}>Drag from Finder/Desktop for best results. If dragging from Photos doesn&apos;t work, use Choose File.</p>}
+                  <input ref={fileInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/webm,video/quicktime" onChange={handleFileChange} style={{ display: "none" }} />
                 </div>
+
+                {photoItems.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
+                    {photoItems.map((it) => {
+                      const isVid = ACPT_VID.includes(it.file.type);
+                      return (
+                        <div key={it.id} style={{ position: "relative", width: "72px" }}>
+                          <div style={{ width: "72px", height: "72px", borderRadius: "8px", overflow: "hidden", border: `1.5px solid ${it.status === "error" ? "#fca5a5" : "#e5e7eb"}`, backgroundColor: "#000" }}>
+                            {isVid
+                              ? <video src={it.previewUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              : <img src={it.previewUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+                            {it.status === "uploading" && (
+                              <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <span style={{ color: "#fff", fontSize: "11px", fontWeight: "700" }}>{it.progress}%</span>
+                              </div>
+                            )}
+                            {it.status === "done" && (
+                              <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(22,163,74,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <span style={{ color: "#fff", fontSize: "16px" }}>✓</span>
+                              </div>
+                            )}
+                          </div>
+                          {it.status !== "uploading" && it.status !== "done" && (
+                            <button type="button" onClick={() => removePhotoItem(it.id)} aria-label={`Remove ${it.file.name}`}
+                              style={{ position: "absolute", top: "-6px", right: "-6px", width: "18px", height: "18px", borderRadius: "50%", backgroundColor: "#111827", border: "2px solid #fff", color: "#fff", fontSize: "10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
+                              ✕
+                            </button>
+                          )}
+                          {it.status === "error" && <p role="alert" style={{ margin: "3px 0 0", fontSize: "9px", color: "#dc2626", lineHeight: 1.3 }}>{it.error}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <input type="text" placeholder="Caption (optional)" value={caption} onChange={(e) => setCaption(e.target.value)} style={inp} />
+              <input type="text" placeholder="Caption (optional, applies to all selected files)" value={caption} onChange={(e) => setCaption(e.target.value)} style={inp} />
               {uploading && (
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}><span>Uploading…</span><span>{uploadPct}%</span></div>
+                <div role="status">
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}><span>Uploading…</span><span>{uploadedN}/{uploadablePhotoCount}</span></div>
                   <div style={{ backgroundColor: "#e5e7eb", borderRadius: "4px", height: "6px" }}>
-                    <div style={{ width: `${uploadPct}%`, backgroundColor: "#2563eb", height: "100%", borderRadius: "4px", transition: "width 0.2s" }} />
+                    <div style={{ width: `${uploadablePhotoCount ? Math.round((uploadedN / uploadablePhotoCount) * 100) : 0}%`, backgroundColor: "#2563eb", height: "100%", borderRadius: "4px", transition: "width 0.2s" }} />
                   </div>
                 </div>
               )}
-              <button onClick={handlePhotoSubmit} disabled={uploading}
-                style={{ padding: "11px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.7 : 1 }}>
-                {uploading ? `Uploading… ${uploadPct}%` : "Upload Photo/Video"}
+              <button
+                onClick={handlePhotoSubmit}
+                aria-disabled={uploading || uploadablePhotoCount === 0}
+                title={!uploading && uploadablePhotoCount === 0 ? "Choose at least one photo or video to submit." : undefined}
+                style={{ padding: "11px", backgroundColor: uploading || uploadablePhotoCount === 0 ? "#d1d5db" : "#111827", color: uploading || uploadablePhotoCount === 0 ? "#9ca3af" : "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: uploading || uploadablePhotoCount === 0 ? "not-allowed" : "pointer" }}>
+                {uploading ? `Uploading… ${uploadedN}/${uploadablePhotoCount}` : uploadablePhotoCount > 1 ? `Upload ${uploadablePhotoCount} Files` : "Upload Photo/Video"}
               </button>
             </>
           )}
@@ -1090,25 +1205,20 @@ function ContributeModal({ businessId, onClose, onReviewSuccess, initialTab = "r
           {/* ── ACCESSIBILITY INFO TAB ─────────────────────────────────── */}
           {tab === "features" && (
             <>
-              {[
-                { id: "wheelchairAccessible",       label: "Wheelchair Accessible",       desc: "Ramps or step-free access",              icon: "♿" },
-                { id: "accessibleParking",          label: "Accessible Parking",          desc: "Designated spaces near entrance",         icon: "🚗" },
-                { id: "accessibleRestroom",         label: "Accessible Restroom",         desc: "Wheelchair-accessible restroom",          icon: "🚻" },
-                { id: "wheelchairAccessibleTables", label: "Wheelchair-accessible tables", desc: "Tables with adequate clearance for wheelchairs", icon: "🪑" },
-                { id: "handrailsAvailable",         label: "Handrails available",         desc: "Handrails on stairs, ramps, or walkways", icon: "🪜" },
-              ].map(({ id, label, desc, icon }, i, arr) => (
-                <label key={id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none", cursor: "pointer" }}>
-                  <input type="checkbox" checked={featureForm[id]} onChange={(e) => setFeatureForm((p) => ({ ...p, [id]: e.target.checked }))} style={{ width: "16px", height: "16px", cursor: "pointer", flexShrink: 0 }} />
-                  <span style={{ fontSize: "18px" }}>{icon}</span>
-                  <div>
-                    <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{label}</div>
-                    <div style={{ fontSize: "12px", color: "#6b7280" }}>{desc}</div>
-                  </div>
-                </label>
-              ))}
+              <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#9ca3af" }}>
+                Choose "Unsure" for anything you don't know — that keeps it from being recorded as "No".
+              </p>
+              <TriToggle label="♿ Wheelchair Accessible" description="Ramps or step-free access" value={featureForm.wheelchairAccessible} onChange={(v) => setFeatureForm((p) => ({ ...p, wheelchairAccessible: v }))} />
+              <TriToggle label="🚗 Accessible Parking" description="Designated spaces near entrance" value={featureForm.accessibleParking} onChange={(v) => setFeatureForm((p) => ({ ...p, accessibleParking: v }))} />
+              <TriToggle label="🚻 Accessible Restroom" description="Wheelchair-accessible restroom" value={featureForm.accessibleRestroom} onChange={(v) => setFeatureForm((p) => ({ ...p, accessibleRestroom: v }))} />
+              <TriToggle label="🪑 Wheelchair-accessible tables" description="Tables with adequate clearance for wheelchairs" value={featureForm.wheelchairAccessibleTables} onChange={(v) => setFeatureForm((p) => ({ ...p, wheelchairAccessibleTables: v }))} />
+              <TriToggle label="🪜 Handrails available" description="Handrails on stairs, ramps, or walkways" value={featureForm.handrailsAvailable} onChange={(v) => setFeatureForm((p) => ({ ...p, handrailsAvailable: v }))} />
               <input type="number" placeholder="Door width in inches (e.g. 36)" value={featureForm.doorWidth} onChange={(e) => setFeatureForm((p) => ({ ...p, doorWidth: e.target.value }))} style={inp} min="0" />
-              <button onClick={handleFeaturesSubmit} disabled={submittingFeatures}
-                style={{ padding: "11px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: submittingFeatures ? "not-allowed" : "pointer", opacity: submittingFeatures ? 0.7 : 1 }}>
+              <button
+                onClick={handleFeaturesSubmit}
+                aria-disabled={submittingFeatures || !featuresHasAnswer}
+                title={!submittingFeatures && !featuresHasAnswer ? "Answer at least one field to submit." : undefined}
+                style={{ padding: "11px", backgroundColor: submittingFeatures || !featuresHasAnswer ? "#d1d5db" : "#111827", color: submittingFeatures || !featuresHasAnswer ? "#9ca3af" : "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: submittingFeatures || !featuresHasAnswer ? "not-allowed" : "pointer" }}>
                 {submittingFeatures ? "Submitting…" : "Submit Info"}
               </button>
             </>
@@ -1134,6 +1244,7 @@ export default function BusinessDetailPage() {
   const [ratingRefreshKey, setRatingRefreshKey] = useState(0);
   const [userPrefs,        setUserPrefs]        = useState([]);
   const [allPhotos,        setAllPhotos]        = useState([]);
+  const [photosError,      setPhotosError]      = useState(null);
   const [modal,            setModal]            = useState(null);
   const [brokenPhotoIds,   setBrokenPhotoIds]   = useState(() => new Set());
 
@@ -1147,8 +1258,15 @@ export default function BusinessDetailPage() {
   useEffect(() => {
     if (!id) return;
     getBusinessPhotos(id)
-      .then(setAllPhotos)
-      .catch(() => setAllPhotos([]));
+      .then((photos) => { setAllPhotos(photos); setPhotosError(null); })
+      .catch((err) => {
+        // Distinguish "couldn't load" from "genuinely no photos" — silently
+        // falling back to an empty list here would make an uploaded photo
+        // look like it never persisted.
+        console.error("Failed to load business photos:", err);
+        setAllPhotos([]);
+        setPhotosError("Couldn't load photos for this business. Please refresh to try again.");
+      });
   }, [id]);
 
   useEffect(() => {
@@ -1270,6 +1388,10 @@ export default function BusinessDetailPage() {
               + Add Media
             </button>
           </div>
+
+          {photosError && (
+            <p role="alert" style={{ margin: "0 0 10px", fontSize: "12px", color: "#dc2626" }}>{photosError}</p>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
             {PHOTO_SLOTS.map((slot) => {

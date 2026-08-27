@@ -2,42 +2,59 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBusinesses, submitFeatures } from "../services/api";
 import { useToast } from "../context/ToastContext";
+import TriToggle from "../components/TriToggle";
 
 // ---------------------------------------------------------------------------
 // ContributeFeaturesPage
 // Route: /contribute/features (protected)
 // ---------------------------------------------------------------------------
 
+// Tri-state (true/false/null = Yes/No/Unsure) — a field left at null is
+// never sent as a report, so it can't be mistaken for a confirmed "No" on
+// the business record. See services/accessibility.py on the backend.
+const INITIAL_FORM = {
+  wheelchairAccessible:       null,
+  accessibleParking:          null,
+  doorWidth:                  "",
+  accessibleRestroom:         null,
+  wheelchairAccessibleTables: null,
+  handrailsAvailable:         null,
+  notes:                      "",
+};
+
 export default function ContributeFeaturesPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [businesses,  setBusinesses]  = useState([]);
   const [businessId,  setBusinessId]  = useState("");
-  const [form, setForm] = useState({
-    wheelchairAccessible:       false,
-    accessibleParking:          false,
-    doorWidth:                  "",
-    accessibleRestroom:         false,
-    wheelchairAccessibleTables: false,
-    handrailsAvailable:         false,
-    notes:                      "",
-  });
+  const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [success,    setSuccess]    = useState(false);
   const [error,      setError]      = useState(null);
+  const [loadError,  setLoadError]  = useState(null);
 
   useEffect(() => {
-    getBusinesses().then(setBusinesses).catch(() => {});
+    getBusinesses()
+      .then(setBusinesses)
+      .catch(() => setLoadError("Couldn't load the business list. Please refresh and try again."));
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  const hasAnswer = Object.entries(form).some(([key, v]) => {
+    if (key === "notes") return v.trim().length > 0;
+    if (key === "doorWidth") return v !== "";
+    return v !== null;
+  });
+  const valid = !!businessId && hasAnswer;
+
+  const setField = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
     setSuccess(false);
   };
 
   const handleSubmit = async (e) => {
-    if (!businessId) return setError("Please select a business.");
+    if (submitting) return;
+    if (!businessId) { setError("Please select a business."); return; }
+    if (!hasAnswer)   { setError("Please answer at least one field before submitting."); return; }
     const anchor = e.currentTarget;
     setError(null);
     setSubmitting(true);
@@ -47,11 +64,11 @@ export default function ContributeFeaturesPage() {
         doorWidth: form.doorWidth ? parseInt(form.doorWidth, 10) : null,
       });
       setSuccess(true);
-      setForm({ wheelchairAccessible: false, accessibleParking: false, doorWidth: "", accessibleRestroom: false, wheelchairAccessibleTables: false, handrailsAvailable: false, notes: "" });
+      setForm(INITIAL_FORM);
       setBusinessId("");
-      showToast("Changes saved", "success", anchor);
+      showToast("Accessibility info added", "success", anchor);
     } catch (err) {
-      setError(err.message || "Submission failed.");
+      setError(err.message || "Submission failed. Your answers were kept — please try again.");
       showToast("Couldn't save changes", "error", anchor);
     } finally {
       setSubmitting(false);
@@ -64,10 +81,12 @@ export default function ContributeFeaturesPage() {
     border: "1.5px solid #d1d5db", borderRadius: "8px",
     outline: "none", boxSizing: "border-box", color: "#111827",
   };
-  const checkRowStyle = {
-    display: "flex", alignItems: "center", gap: "10px",
-    padding: "10px 0", borderBottom: "1px solid #f3f4f6",
-  };
+
+  const submitHint = !businessId
+    ? "Select a business to submit."
+    : !hasAnswer
+      ? "Answer at least one field to submit."
+      : undefined;
 
   return (
     <div style={{ fontFamily: "sans-serif", backgroundColor: "#f9fafb", minHeight: "100vh", padding: "32px 24px" }}>
@@ -84,14 +103,25 @@ export default function ContributeFeaturesPage() {
         <h1 style={{ fontSize: "24px", fontWeight: "800", color: "#111827", margin: "0 0 8px" }}>
           Add Accessibility Features
         </h1>
-        <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 28px" }}>
-          Share what accessibility features this location has.
+        <p style={{ fontSize: "14px", color: "#6b7280", margin: "0 0 8px" }}>
+          Share what accessibility features this location has. This is community-submitted
+          info — it appears on the business page right away, alongside how many contributors
+          have confirmed each detail.
+        </p>
+        <p style={{ fontSize: "13px", color: "#9ca3af", margin: "0 0 28px" }}>
+          Choose "Unsure" for anything you don't know — that keeps it from being recorded as "No".
         </p>
 
         {/* Success message */}
         {success && (
-          <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "14px", color: "#15803d" }}>
-            ✓ Features submitted for review. Thank you for contributing!
+          <div role="status" style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "14px", color: "#15803d" }}>
+            ✓ Accessibility info added. Thank you for contributing!
+          </div>
+        )}
+
+        {loadError && (
+          <div role="alert" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "14px", color: "#dc2626" }}>
+            {loadError}
           </div>
         )}
 
@@ -100,10 +130,11 @@ export default function ContributeFeaturesPage() {
 
           {/* Business selector */}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
-            <label style={labelStyle}>Business</label>
+            <label htmlFor="features-business" style={labelStyle}>Business <span style={{ color: "#dc2626" }}>*</span></label>
             <select
+              id="features-business"
               value={businessId}
-              onChange={(e) => { setBusinessId(e.target.value); setSuccess(false); }}
+              onChange={(e) => { setBusinessId(e.target.value); setSuccess(false); setError(null); }}
               style={{ ...inputStyle, backgroundColor: "#f9fafb", cursor: "pointer" }}
             >
               <option value="">Select a business...</option>
@@ -113,58 +144,24 @@ export default function ContributeFeaturesPage() {
             </select>
           </div>
 
-          {/* Wheelchair accessible */}
-          <div style={checkRowStyle}>
-            <input type="checkbox" id="wheelchairAccessible" name="wheelchairAccessible"
-              checked={form.wheelchairAccessible} onChange={handleChange}
-              style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-            <label htmlFor="wheelchairAccessible" style={{ ...labelStyle, cursor: "pointer" }}>Wheelchair Accessible</label>
-          </div>
-
-          {/* Accessible parking */}
-          <div style={checkRowStyle}>
-            <input type="checkbox" id="accessibleParking" name="accessibleParking"
-              checked={form.accessibleParking} onChange={handleChange}
-              style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-            <label htmlFor="accessibleParking" style={{ ...labelStyle, cursor: "pointer" }}>Accessible Parking</label>
-          </div>
-
-          {/* Accessible restroom */}
-          <div style={checkRowStyle}>
-            <input type="checkbox" id="accessibleRestroom" name="accessibleRestroom"
-              checked={form.accessibleRestroom} onChange={handleChange}
-              style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-            <label htmlFor="accessibleRestroom" style={{ ...labelStyle, cursor: "pointer" }}>Accessible Restroom</label>
-          </div>
-
-          {/* Wheelchair-accessible tables */}
-          <div style={checkRowStyle}>
-            <input type="checkbox" id="wheelchairAccessibleTables" name="wheelchairAccessibleTables"
-              checked={form.wheelchairAccessibleTables} onChange={handleChange}
-              style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-            <label htmlFor="wheelchairAccessibleTables" style={{ ...labelStyle, cursor: "pointer" }}>Wheelchair-accessible tables</label>
-          </div>
-
-          {/* Handrails available */}
-          <div style={{ ...checkRowStyle, borderBottom: "none" }}>
-            <input type="checkbox" id="handrailsAvailable" name="handrailsAvailable"
-              checked={form.handrailsAvailable} onChange={handleChange}
-              style={{ width: "16px", height: "16px", cursor: "pointer" }} />
-            <label htmlFor="handrailsAvailable" style={{ ...labelStyle, cursor: "pointer" }}>Handrails available</label>
-          </div>
+          <TriToggle label="♿ Wheelchair Accessible" description="Ramps or step-free access" value={form.wheelchairAccessible} onChange={(v) => setField("wheelchairAccessible", v)} />
+          <TriToggle label="🚗 Accessible Parking" description="Designated spaces near entrance" value={form.accessibleParking} onChange={(v) => setField("accessibleParking", v)} />
+          <TriToggle label="🚻 Accessible Restroom" description="Wheelchair-accessible restroom" value={form.accessibleRestroom} onChange={(v) => setField("accessibleRestroom", v)} />
+          <TriToggle label="🪑 Wheelchair-accessible tables" description="Tables with adequate clearance for wheelchairs" value={form.wheelchairAccessibleTables} onChange={(v) => setField("wheelchairAccessibleTables", v)} />
+          <TriToggle label="🪜 Handrails available" description="Handrails on stairs, ramps, or walkways" value={form.handrailsAvailable} onChange={(v) => setField("handrailsAvailable", v)} />
 
           {/* Door width */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "12px" }}>
-            <label style={labelStyle}>Door Width (inches)</label>
-            <input type="number" name="doorWidth" placeholder="e.g. 36"
-              value={form.doorWidth} onChange={handleChange} min="0" style={inputStyle} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+            <label htmlFor="features-door-width" style={labelStyle}>Door Width (inches) <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optional)</span></label>
+            <input id="features-door-width" type="number" name="doorWidth" placeholder="e.g. 36"
+              value={form.doorWidth} onChange={(e) => setField("doorWidth", e.target.value)} min="0" style={inputStyle} />
           </div>
 
           {/* Notes */}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
-            <label style={labelStyle}>Additional Notes</label>
-            <textarea name="notes" placeholder="Any other accessibility details worth mentioning..."
-              value={form.notes} onChange={handleChange} rows={4}
+            <label htmlFor="features-notes" style={labelStyle}>Additional Notes <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optional)</span></label>
+            <textarea id="features-notes" name="notes" placeholder="Any other accessibility details worth mentioning..."
+              value={form.notes} onChange={(e) => setField("notes", e.target.value)} rows={4}
               style={{ ...inputStyle, resize: "vertical" }} />
           </div>
 
@@ -172,16 +169,22 @@ export default function ContributeFeaturesPage() {
 
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            aria-disabled={!valid || submitting}
+            title={submitHint}
+            onKeyDown={(e) => { if ((!valid || submitting) && (e.key === "Enter" || e.key === " ")) e.preventDefault(); }}
             style={{
-              padding: "12px", backgroundColor: "#111827", color: "#fff",
+              padding: "12px", backgroundColor: !valid || submitting ? "#d1d5db" : "#111827",
+              color: !valid || submitting ? "#9ca3af" : "#fff",
               border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: "600",
-              cursor: submitting ? "not-allowed" : "pointer",
-              opacity: submitting ? 0.7 : 1, marginTop: "12px",
+              cursor: submitting ? "not-allowed" : !valid ? "not-allowed" : "pointer",
+              marginTop: "12px",
             }}
           >
             {submitting ? "Submitting..." : "Submit Features"}
           </button>
+          {submitHint && !submitting && (
+            <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#9ca3af" }}>{submitHint}</p>
+          )}
         </div>
 
       </div>

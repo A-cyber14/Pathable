@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel, field_validator
 from typing import Optional
@@ -5,10 +6,12 @@ from datetime import datetime, timezone
 from services.firebase import db
 from services.scoring import calculate_accessibility_score
 from services.stats import recalculate_business_stats
+from services.accessibility import apply_accessibility_report
 from models.business import Business
 import firebase_admin.auth as firebase_auth
 
 router = APIRouter()
+logger = logging.getLogger("pathable.contributions")
 
 REVIEWS_COLLECTION = "reviews"
 BUSINESSES_COLLECTION = "businesses"
@@ -37,12 +40,16 @@ class ReviewSubmission(BaseModel):
     business_id:           str
     rating:                int           # required, 1–5
     comment:               str           # required, min 10 chars after strip
-    wheelchair_accessible:        bool
-    accessible_parking:           bool
-    accessible_restrooms:         bool
-    elevator:                     bool
-    auto_doors:                   bool
-    entrance_width_rating:        str           # "narrow", "standard", "wide"
+    # Accessibility fields are optional/tri-state (True/False/None = Yes/No/
+    # Unsure) — a reviewer who doesn't know or didn't check something must
+    # never have that read as a confirmed "No". None is skipped entirely by
+    # services/accessibility.py rather than being treated as a report.
+    wheelchair_accessible:        Optional[bool] = None
+    accessible_parking:           Optional[bool] = None
+    accessible_restrooms:         Optional[bool] = None
+    elevator:                     Optional[bool] = None
+    auto_doors:                   Optional[bool] = None
+    entrance_width_rating:        Optional[str]  = None  # "narrow", "standard", "wide"
     wheelchair_accessible_tables: Optional[bool] = None
     handrails_available:          Optional[bool] = None
 
@@ -63,8 +70,8 @@ class ReviewSubmission(BaseModel):
     @field_validator("entrance_width_rating")
     @classmethod
     def validate_entrance_width(cls, v):
-        if v not in ("narrow", "standard", "wide"):
-            raise ValueError('entrance_width_rating must be "narrow", "standard", or "wide"')
+        if v is not None and v not in ("narrow", "standard", "wide"):
+            raise ValueError('entrance_width_rating must be "narrow", "standard", "wide", or omitted')
         return v
 
 
@@ -83,24 +90,57 @@ def submit_review(review: ReviewSubmission, authorization: str = Header(...)):
     if not business_ref.get().exists:
         raise HTTPException(status_code=404, detail=f"Business '{review.business_id}' not found")
 
-    db.collection(REVIEWS_COLLECTION).add({
-        "business_id":           review.business_id,
-        "submittedBy":           uid,
-        "rating":                review.rating,
-        "comment":               review.comment,   # already stripped by validator
-        "wheelchair_accessible":        review.wheelchair_accessible,
-        "accessible_parking":           review.accessible_parking,
-        "accessible_restrooms":         review.accessible_restrooms,
-        "elevator":                     review.elevator,
-        "auto_doors":                   review.auto_doors,
-        "entrance_width_rating":        review.entrance_width_rating,
-        "wheelchair_accessible_tables": review.wheelchair_accessible_tables,
-        "handrails_available":          review.handrails_available,
-        "status":                "approved",
-        "submitted_at":          datetime.now(timezone.utc).isoformat(),
-    })
+    try:
+        db.collection(REVIEWS_COLLECTION).add({
+            "business_id":           review.business_id,
+            "submittedBy":           uid,
+            "rating":                review.rating,
+            "comment":               review.comment,   # already stripped by validator
+            "wheelchair_accessible":        review.wheelchair_accessible,
+            "accessible_parking":           review.accessible_parking,
+            "accessible_restrooms":         review.accessible_restrooms,
+            "elevator":                     review.elevator,
+            "auto_doors":                   review.auto_doors,
+            "entrance_width_rating":        review.entrance_width_rating,
+            "wheelchair_accessible_tables": review.wheelchair_accessible_tables,
+            "handrails_available":          review.handrails_available,
+            "status":                "approved",
+            "submitted_at":          datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        logger.exception(
+            "Failed to write review — stage=firestore_write business_id=%s uid=%s",
+            review.business_id, uid,
+        )
+        raise HTTPException(status_code=500, detail="Failed to save your review. Please try again.")
 
-    recalculate_business_stats(review.business_id)
+    # Best-effort: the review itself is already saved even if either of these
+    # secondary updates fails, so we log rather than raise — the user's
+    # review was not lost.
+    try:
+        recalculate_business_stats(review.business_id)
+    except Exception:
+        logger.exception(
+            "Failed to recalculate business stats — stage=recalculate_stats business_id=%s",
+            review.business_id,
+        )
+
+    try:
+        apply_accessibility_report(review.business_id, {
+            "wheelchair_accessible":        review.wheelchair_accessible,
+            "accessible_parking":           review.accessible_parking,
+            "accessible_restrooms":         review.accessible_restrooms,
+            "elevator":                     review.elevator,
+            "auto_doors":                   review.auto_doors,
+            "entrance_width_rating":        review.entrance_width_rating,
+            "wheelchair_accessible_tables": review.wheelchair_accessible_tables,
+            "handrails_available":          review.handrails_available,
+        })
+    except Exception:
+        logger.exception(
+            "Failed to apply accessibility report from review — stage=apply_accessibility_report business_id=%s",
+            review.business_id,
+        )
 
     return {
         "message":     "Review submitted successfully",

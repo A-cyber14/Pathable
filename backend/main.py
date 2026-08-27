@@ -1,10 +1,19 @@
 import os
+import logging
 import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from routers import businesses, reviews, users, admin, dashboard, billing
+
+# Consistent, timestamped format for the contribution-pipeline logging added
+# in routers/businesses.py and routers/reviews.py (logger name
+# "pathable.contributions") — makes failures there greppable in Railway logs.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 app = FastAPI(
     title="Pathable API",
