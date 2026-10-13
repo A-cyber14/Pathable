@@ -306,7 +306,7 @@ export default function UnverifiedBusinessPage() {
 
   // Guard: no data means someone hit this URL directly — send them home
   useEffect(() => {
-    if (!place) navigate("/", { replace: true });
+    if (!place) navigate("/explore", { replace: true });
   }, [place, navigate]);
 
   if (!place) return null;
@@ -337,7 +337,7 @@ export default function UnverifiedBusinessPage() {
 
         {/* Back */}
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/explore")}
           style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", fontSize: "14px", padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}
         >
           ← Back to Map

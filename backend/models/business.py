@@ -72,6 +72,29 @@ class Business(BaseModel):
     businessTutorialCompleted: Optional[bool] = False
 
 
+# Owner/billing fields that must never leave the server on public read
+# endpoints (business detail, top-rated, a user's bookmarks). The owner gets
+# them through the authenticated /api/dashboard/my-business instead.
+PRIVATE_BUSINESS_FIELDS = (
+    "ownerUserId",
+    "selectedPlan",
+    "paymentStatus",
+    "subscriptionStatus",
+    "stripeCustomerId",
+    "stripeSubscriptionId",
+    "businessOnboardingStep",
+    "businessTutorialCompleted",
+)
+
+
+def strip_private_fields(data: dict) -> dict:
+    """Return a copy of a business dict that is safe to serve publicly."""
+    data = {k: v for k, v in data.items() if k not in PRIVATE_BUSINESS_FIELDS}
+    if not data.get("businessEmailPublic"):
+        data.pop("businessEmail", None)
+    return data
+
+
 class BusinessSummary(BaseModel):
     """Lightweight version returned in list/search results."""
     id: str

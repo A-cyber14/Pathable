@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 // ---------------------------------------------------------------------------
@@ -28,8 +28,10 @@ function friendlyError(err) {
 export default function LoginPage() {
   const { currentUser, loginWithGoogle, signUpWithEmail, signInWithEmail } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [mode,      setMode]      = useState("signin"); // "signin" | "signup"
+  // "?mode=signup" (from the landing page's Get Started) opens on sign-up.
+  const [mode,      setMode]      = useState(searchParams.get("mode") === "signup" ? "signup" : "signin"); // "signin" | "signup"
   const [email,     setEmail]     = useState("");
   const [password,  setPassword]  = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -263,12 +265,9 @@ export default function LoginPage() {
         {/* Guest note */}
         <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "20px" }}>
           You can also{" "}
-          <span
-            onClick={() => navigate("/")}
-            style={{ color: "#2563eb", cursor: "pointer", textDecoration: "underline" }}
-          >
+          <Link to="/explore" style={{ color: "#2563eb", textDecoration: "underline" }}>
             browse without signing in
-          </span>
+          </Link>
         </p>
       </div>
     </div>

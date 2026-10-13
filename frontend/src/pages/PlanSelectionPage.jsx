@@ -4,7 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { getDashboardBusiness, updateDashboardBusiness, updateProfile } from "../services/api";
 import { useIsMobile } from "../hooks/useIsMobile";
-import { PLANS } from "../constants/plans";
+import { PLANS, PLAN_BY_ID } from "../constants/plans";
+import { getPlanIntent, setPlanIntent } from "../utils/signupIntent";
 
 // ---------------------------------------------------------------------------
 // PlanSelectionPage
@@ -40,7 +41,13 @@ export default function PlanSelectionPage() {
     // stale response can never stomp state after the real one already has.
     let ignore = false;
     getDashboardBusiness()
-      .then((biz) => { if (!ignore) setSelected(biz.selectedPlan || null); })
+      .then((biz) => {
+        if (ignore) return;
+        // Pre-highlight the plan picked on /for-businesses when the business
+        // hasn't chosen one yet. Still requires the owner to press Continue.
+        const intent = getPlanIntent();
+        setSelected(biz.selectedPlan || (PLAN_BY_ID[intent] ? intent : null));
+      })
       .catch(() => {})
       .finally(() => { if (!ignore) setLoading(false); });
     return () => { ignore = true; };
@@ -53,6 +60,7 @@ export default function PlanSelectionPage() {
     setError(null);
     try {
       await updateDashboardBusiness({ selectedPlan: selected });
+      setPlanIntent(null);
       showToast("Plan selected", "success", anchor);
       if (isManaging) {
         navigate("/business-profile");

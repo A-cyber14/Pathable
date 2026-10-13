@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { updateProfile } from "../services/api";
+import { getAccountIntent, setAccountIntent } from "../utils/signupIntent";
 
 // ---------------------------------------------------------------------------
 // AccountTypePage
@@ -56,6 +57,9 @@ export default function AccountTypePage() {
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState(null);
   const [hovered,       setHovered]       = useState(null);
+  // What the visitor picked on the landing page's Get Started dialog, if
+  // anything — only used to highlight that card, never to auto-select it.
+  const [preferred] = useState(getAccountIntent);
 
   const handleSelect = async (type) => {
     if (saving) return;
@@ -69,6 +73,7 @@ export default function AccountTypePage() {
       // knowing you can even claim or create the right business.
       const onboardingStep = type === "business" ? "business-search" : "profile";
       await updateProfile({ accountType: type, onboardingStep });
+      setAccountIntent(null);
       await refreshProfile();
       navigate(type === "business" ? "/business-setup" : "/onboarding/profile");
     } catch (err) {
@@ -117,7 +122,7 @@ export default function AccountTypePage() {
       >
         {OPTIONS.map((opt) => {
           const isSelected = selected === opt.type;
-          const isHovered  = hovered  === opt.type && !saving;
+          const isHovered  = (hovered === opt.type || (hovered === null && preferred === opt.type)) && !saving;
 
           return (
             <button

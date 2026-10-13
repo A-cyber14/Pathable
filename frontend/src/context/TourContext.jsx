@@ -11,11 +11,11 @@ import { getTopRated } from "../services/api";
 // ---------------------------------------------------------------------------
 
 export const PERSONAL_TOUR_STEPS = [
-  { target: '[data-tour="search"]',    route: "/", title: "Search",        body: "Find a business or place." },
-  { target: '[data-tour="filters"]',   route: "/", title: "Filters",       body: "Choose the accessibility features you need." },
-  { target: '[data-tour="near-you"]',  route: "/", title: "Nearby places", body: "See accessible locations closest to you." },
-  { target: '[data-tour="nav-profile"]',   route: "/", title: "Profile",      body: "Manage your preferences and settings." },
-  { target: '[data-tour="nav-bookmarks"]', route: "/", title: "Saved places", body: "Keep places you want to visit later." },
+  { target: '[data-tour="search"]',    route: "/explore", title: "Search",        body: "Find a business or place." },
+  { target: '[data-tour="filters"]',   route: "/explore", title: "Filters",       body: "Choose the accessibility features you need." },
+  { target: '[data-tour="near-you"]',  route: "/explore", title: "Nearby places", body: "See accessible locations closest to you." },
+  { target: '[data-tour="nav-profile"]',   route: "/explore", title: "Profile",      body: "Manage your preferences and settings." },
+  { target: '[data-tour="nav-bookmarks"]', route: "/explore", title: "Saved places", body: "Keep places you want to visit later." },
   { target: '[data-tour="accessibility-details"]', route: "business", title: "Accessibility details", body: "See entrances, parking, restrooms, photos, and more." },
   { target: '[data-tour="contribute"]',            route: "business", title: "Contribute",             body: "Add reviews, photos, or accessibility information." },
 ];

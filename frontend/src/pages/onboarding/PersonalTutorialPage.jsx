@@ -38,7 +38,7 @@ export default function PersonalTutorialPage() {
           // Non-blocking.
         }
       });
-      navigate("/", { replace: true });
+      navigate("/explore", { replace: true });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

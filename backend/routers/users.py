@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
-from models.business import Business
+from models.business import Business, strip_private_fields
 from services.firebase import db, get_contributor_uid
 from services.scoring import calculate_accessibility_score
 from services.duplicates import find_duplicate_business_id
@@ -269,7 +269,7 @@ def get_bookmarks(authorization: str = Header(...)):
             data["id"] = doc.id
             data = _enrich_score(data)
             try:
-                results.append(Business.model_validate(data))
+                results.append(Business.model_validate(strip_private_fields(data)))
             except Exception:
                 pass
 

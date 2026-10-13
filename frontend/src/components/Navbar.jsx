@@ -50,22 +50,23 @@ function ShieldIcon() {
 
 const USER_NAV_ITEMS = [
   { path: "/profile",          icon: <PersonIcon />,       label: "Profile",  shortLabel: "Profile", tourId: "nav-profile"   },
-  { path: "/",                 icon: <MapPinIcon />,        label: "Map",      shortLabel: "Home"     },
+  { path: "/explore",          icon: <MapPinIcon />,        label: "Map",      shortLabel: "Home"     },
   { path: "/bookmarks",        icon: <BookmarkSVGIcon />,   label: "Bookmarks",shortLabel: "Saved",   tourId: "nav-bookmarks" },
 ];
 
 const BUSINESS_NAV_ITEMS = [
   { path: "/business-profile", icon: <PersonIcon />,        label: "Business Profile", shortLabel: "Profile" },
-  { path: "/",                 icon: <MapPinIcon />,         label: "Map",              shortLabel: "Home"    },
+  { path: "/explore",          icon: <MapPinIcon />,         label: "Map",              shortLabel: "Home"    },
 ];
 
 const ADMIN_NAV_ITEMS = [
   { path: "/admin",            icon: <ShieldIcon />,         label: "Admin",  shortLabel: "Admin" },
-  { path: "/",                 icon: <MapPinIcon />,         label: "Map",    shortLabel: "Home"  },
+  { path: "/explore",          icon: <MapPinIcon />,         label: "Map",    shortLabel: "Home"  },
 ];
 
-// Pages where the sidebar should be hidden (sign-in + onboarding).
-const HIDDEN_PATHS = ["/login", "/account-type"];
+// Pages where the sidebar should be hidden (sign-in, onboarding, and the
+// marketing pages, which render their own top navigation).
+const HIDDEN_PATHS = ["/", "/for-businesses", "/login", "/account-type"];
 const HIDDEN_PATH_PREFIXES = ["/onboarding", "/business-setup"];
 
 function isHiddenPath(pathname) {
@@ -90,8 +91,7 @@ export default function Navbar() {
     accountType === "business" ? BUSINESS_NAV_ITEMS :
     USER_NAV_ITEMS;
 
-  const isActive = (path) =>
-    path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
+  const isActive = (path) => location.pathname.startsWith(path);
 
   // --- Mobile: fixed bottom nav bar ---
   if (isMobile) {
@@ -164,21 +164,22 @@ export default function Navbar() {
         zIndex:          100,
       }}
     >
-      {/* Logo */}
+      {/* Logo — "/" routes signed-in users to their home, visitors to the landing page */}
+      <Link to="/" aria-label="Pathable home" style={{ display: "flex", marginBottom: "24px", borderRadius: "8px" }}>
       <img
         src="/logo.png"
-        alt="Pathable"
+        alt=""
         title="Pathable"
         style={{
           width:        "46px",
           height:       "46px",
           objectFit:    "contain",
           flexShrink:   0,
-          marginBottom: "24px",
           userSelect:   "none",
           borderRadius: "8px",
         }}
       />
+      </Link>
 
       {/* Nav items */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>

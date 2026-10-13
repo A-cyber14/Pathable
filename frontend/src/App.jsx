@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import HomePage               from "./pages/HomePage";
+import LandingPage            from "./pages/landing/LandingPage";
+import BusinessLandingPage    from "./pages/landing/BusinessLandingPage";
 import BusinessDetailPage     from "./pages/BusinessDetailPage";
 import UnverifiedBusinessPage from "./pages/UnverifiedBusinessPage";
 import LoginPage              from "./pages/LoginPage";
@@ -91,6 +93,32 @@ function ProfileGate({ children }) {
 }
 
 // ---------------------------------------------------------------------------
+// RootRoute
+// "/" is the public landing page. Signed-in users never see it — they go to
+// their usual home: the map for individuals, the dashboard for businesses,
+// the admin page for admins. New users (no accountType) and users with an
+// in-progress onboarding step render nothing here and let ProfileGate route
+// them, so the two never race each other.
+// ---------------------------------------------------------------------------
+
+function RootRoute() {
+  const { currentUser, userProfile, profileLoading } = useAuth();
+  if (!currentUser) return <LandingPage />;
+  if (profileLoading || !userProfile) return null;
+
+  const step = userProfile.onboardingStep;
+  if (userProfile.accountType == null) return null;
+  if (step && step !== "complete" && STEP_TO_PATH[step]) return null;
+
+  if (userProfile.accountType === "business") return <Navigate to="/business-profile" replace />;
+  if (userProfile.accountType === "admin")    return <Navigate to="/admin" replace />;
+  return <Navigate to="/explore" replace />;
+}
+
+// Marketing pages render full-width with their own top navigation.
+const MARKETING_PATHS = ["/", "/for-businesses"];
+
+// ---------------------------------------------------------------------------
 // UserRoute
 // Blocks business and admin users from regular-user-only pages.
 // ---------------------------------------------------------------------------
@@ -120,12 +148,22 @@ function AdminRoute({ children }) {
 // ---------------------------------------------------------------------------
 
 export default function App() {
-  const isMobile = useIsMobile();
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <AppShell />
+    </BrowserRouter>
+  );
+}
+
+function AppShell() {
+  const isMobile = useIsMobile();
+  const { pathname } = useLocation();
+  const isMarketing = MARKETING_PATHS.includes(pathname);
+  return (
+    <>
       <Navbar />
       <TourOverlay />
-      <div style={{
+      <div style={isMarketing ? undefined : {
         marginLeft: isMobile ? 0 : "68px",
         height:     isMobile
           ? "calc(100vh - 64px - env(safe-area-inset-bottom, 0px))"
@@ -134,7 +172,9 @@ export default function App() {
         <ProfileGate>
           <Routes>
             {/* Public */}
-            <Route path="/"               element={<HomePage />} />
+            <Route path="/"               element={<RootRoute />} />
+            <Route path="/explore"        element={<HomePage />} />
+            <Route path="/for-businesses" element={<BusinessLandingPage />} />
             <Route path="/business/:id"   element={<BusinessDetailPage />} />
             <Route path="/place/:placeId" element={<UnverifiedBusinessPage />} />
             <Route path="/login"          element={<LoginPage />} />
@@ -176,6 +216,6 @@ export default function App() {
           </Routes>
         </ProfileGate>
       </div>
-    </BrowserRouter>
+    </>
   );
 }

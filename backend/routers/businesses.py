@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel, field_validator
 from typing import Optional
-from models.business import Business, BusinessSummary
+from models.business import Business, BusinessSummary, strip_private_fields
 from services.firebase import db, get_contributor_uid
 from services.scoring import calculate_accessibility_score
 from services.stats import recalculate_business_stats
@@ -104,7 +104,7 @@ def get_top_rated():
     results = []
     for _, data in scored[:10]:
         try:
-            results.append(Business.model_validate(data))
+            results.append(Business.model_validate(strip_private_fields(data)))
         except Exception:
             pass
     return results
@@ -400,7 +400,7 @@ def get_business(business_id: str):
     data = doc.to_dict()
     data["id"] = doc.id
     data = _enrich_score(data)
-    return Business.model_validate(data)
+    return Business.model_validate(strip_private_fields(data))
 
 
 # ---------------------------------------------------------------------------
@@ -607,7 +607,8 @@ def get_business_reviews(business_id: str):
                     if udata.get("hideIdentity"):
                         data["reviewerName"] = "Anonymous"
                     else:
-                        data["reviewerName"] = udata.get("displayName") or udata.get("email") or "Contributor"
+                        # Never fall back to the login email — it's private.
+                        data["reviewerName"] = udata.get("displayName") or "Contributor"
                 else:
                     data["reviewerName"] = "Contributor"
             except Exception:
@@ -651,7 +652,7 @@ def get_business_photos(business_id: str):
                 if udoc.exists:
                     udata = udoc.to_dict()
                     user_cache[uid] = "Anonymous" if udata.get("hideIdentity") else (
-                        udata.get("displayName") or udata.get("email") or "Contributor"
+                        udata.get("displayName") or "Contributor"  # never the private login email
                     )
                 else:
                     user_cache[uid] = "Contributor"
